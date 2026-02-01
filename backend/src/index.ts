@@ -5,6 +5,7 @@ import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { stretchingRouter } from './routes/stretching.js';
 import strengthRouter from './routes/strength.js';
+import exercisesRouter from './routes/exercises.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.use('/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/stretching', stretchingRouter);
 app.use('/api/v1/strength', strengthRouter);
+app.use('/api/v1/exercises', exercisesRouter);
 
 // Error handling
 app.use(errorHandler);
@@ -31,3 +33,4 @@ app.listen(PORT, () => {
 });
 
 export default app;
+

@@ -247,12 +247,17 @@ model ProgressVideo {
 
 model Exercise {
   id              String   @id @default(uuid())
+  externalId      String?  @unique @map("external_id") // ExerciseDB API ID
   name            String
   description     String?
   category        String   // barbell, dumbbell, machine, bodyweight, cable, kettlebell
   equipmentNeeded String?  @map("equipment_needed") // JSON array
+  bodyPart        String?  @map("body_part") // ExerciseDB: chest, back, shoulders, etc.
+  target          String?  // ExerciseDB: target muscle (more specific than bodyPart)
+  equipment       String?  // ExerciseDB equipment field
   videoUrl        String?  @map("video_url")
   thumbnailUrl    String?  @map("thumbnail_url")
+  gifUrl          String?  @map("gif_url") // ExerciseDB GIF URL
   primaryMuscles  String   @map("primary_muscles") // JSON array
   secondaryMuscles String? @map("secondary_muscles") // JSON array
   difficulty      String   @default("beginner")
@@ -274,6 +279,8 @@ model Exercise {
   workoutExercises WorkoutExercise[]
   personalRecords  PersonalRecord[]
 
+  @@index([bodyPart])
+  @@index([target])
   @@map("exercises")
 }
 
@@ -514,3 +521,5 @@ model DeletionRequest {
 
   @@map("deletion_requests")
 }
+
+

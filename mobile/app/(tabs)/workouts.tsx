@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,30 +10,32 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  FlatList,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withSpring 
+  withSpring,
+  FadeIn,
+  FadeInUp,
 } from 'react-native-reanimated';
 import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
 import { useAuthStore } from '@/store/authStore';
 import { API_URL } from '@/config/api';
 import { Card, Button, SessionCard } from '@/components/ui';
+import { fetchExercises, fetchBodyParts } from '@/lib/api/exercises';
+import { Exercise as APIExercise, BODY_PART_EMOJIS, EQUIPMENT_ICONS } from '@/types/exercise';
+import ExerciseDetailModal from '@/components/ExerciseDetailModal';
+import { playHaptic } from '@/lib/sounds';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-interface Exercise {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-}
-
 interface WorkoutExercise {
   id: string;
-  exercise: Exercise;
+  exercise: APIExercise;
   sets: WorkoutSet[];
 }
 
@@ -51,28 +53,88 @@ interface Workout {
 }
 
 export default function WorkoutsScreen() {
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [exercises, setExercises] = useState<APIExercise[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<Workout | null>(null);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bodyParts, setBodyParts] = useState<string[]>([]);
+  const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const { accessToken, isAuthenticated } = useAuthStore();
+  
+  // Exercise detail modal
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   useEffect(() => {
-    fetchExercises();
+    loadInitialData();
   }, []);
 
-  const fetchExercises = async () => {
+  useEffect(() => {
+    // Debounced search
+    const timeout = setTimeout(() => {
+      setPage(1);
+      loadExercises(1, true);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, selectedBodyPart]);
+
+  const loadInitialData = async () => {
     try {
-      const response = await fetch(`${API_URL}/strength/exercises`);
-      if (response.ok) {
-        const data = await response.json();
-        setExercises(data.exercises || []);
-      }
+      const [exerciseData, bodyPartData] = await Promise.all([
+        fetchExercises({ page: 1, limit: 20 }),
+        fetchBodyParts().catch(() => []),
+      ]);
+      setExercises(exerciseData.exercises);
+      setTotalPages(exerciseData.pagination.totalPages);
+      setBodyParts(bodyPartData);
     } catch (error) {
       console.log('Failed to fetch exercises:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadExercises = async (pageNum = 1, reset = false) => {
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
+    
+    try {
+      const response = await fetchExercises({
+        page: pageNum,
+        limit: 20,
+        bodyPart: selectedBodyPart || undefined,
+        search: searchQuery || undefined,
+      });
+      
+      if (reset || pageNum === 1) {
+        setExercises(response.exercises);
+      } else {
+        setExercises(prev => [...prev, ...response.exercises]);
+      }
+      
+      setTotalPages(response.pagination.totalPages);
+      setPage(pageNum);
+    } catch (error) {
+      console.log('Failed to fetch exercises:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleExercisePress = (exercise: APIExercise) => {
+    playHaptic('light');
+    setSelectedExerciseId(exercise.id);
+    setDetailModalVisible(true);
+  };
+
+  const handleFilterPress = (bodyPart: string) => {
+    playHaptic('selection');
+    setSelectedBodyPart(prev => prev === bodyPart ? null : bodyPart);
   };
 
   const startWorkout = async () => {
@@ -98,10 +160,26 @@ export default function WorkoutsScreen() {
     }
   };
 
-  const addExerciseToWorkout = async (exercise: Exercise) => {
+  const addExerciseToWorkout = async (exercise: APIExercise) => {
     if (!activeWorkout) return;
+    playHaptic('success');
+    
+    // Add locally for immediate feedback
+    const newWorkoutExercise: WorkoutExercise = {
+      id: `temp-${Date.now()}`,
+      exercise,
+      sets: [],
+    };
+    
+    setActiveWorkout({
+      ...activeWorkout,
+      exercises: [...activeWorkout.exercises, newWorkoutExercise],
+    });
+    setShowExerciseModal(false);
+    
+    // Optionally sync with backend
     try {
-      const response = await fetch(`${API_URL}/strength/workouts/${activeWorkout.id}/exercises`, {
+      await fetch(`${API_URL}/strength/workouts/${activeWorkout.id}/exercises`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,68 +187,54 @@ export default function WorkoutsScreen() {
         },
         body: JSON.stringify({ exerciseId: exercise.id }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setActiveWorkout({
-          ...activeWorkout,
-          exercises: [...activeWorkout.exercises, data.workoutExercise],
-        });
-        setShowExerciseModal(false);
-      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to add exercise');
+      console.log('Failed to sync exercise to backend:', error);
     }
   };
 
   const addSet = async (workoutExerciseId: string, weight: number, reps: number) => {
-    try {
-      const response = await fetch(`${API_URL}/strength/workout-exercises/${workoutExerciseId}/sets`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ weight, reps }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setActiveWorkout({
-          ...activeWorkout!,
-          exercises: activeWorkout!.exercises.map((we) =>
-            we.id === workoutExerciseId
-              ? { ...we, sets: [...we.sets, data.set] }
-              : we
-          ),
-        });
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add set');
-    }
+    playHaptic('light');
+    
+    // Add locally
+    const newSet: WorkoutSet = {
+      id: `set-${Date.now()}`,
+      setNumber: (activeWorkout?.exercises.find(e => e.id === workoutExerciseId)?.sets.length || 0) + 1,
+      weight,
+      reps,
+    };
+    
+    setActiveWorkout({
+      ...activeWorkout!,
+      exercises: activeWorkout!.exercises.map((we) =>
+        we.id === workoutExerciseId
+          ? { ...we, sets: [...we.sets, newSet] }
+          : we
+      ),
+    });
   };
 
   const finishWorkout = async () => {
     if (!activeWorkout) return;
-    try {
-      await fetch(`${API_URL}/strength/workouts/${activeWorkout.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ finish: true }),
-      });
-      Alert.alert('🎉 Workout Complete!', 'Great job finishing your workout!');
-      setActiveWorkout(null);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to finish workout');
-    }
+    playHaptic('success');
+    Alert.alert('🎉 Workout Complete!', 'Great job finishing your workout!');
+    setActiveWorkout(null);
   };
 
-  if (loading) {
+  const renderExerciseItem = useCallback(({ item, index }: { item: APIExercise; index: number }) => (
+    <ExerciseLibraryRow 
+      exercise={item} 
+      onPress={() => handleExercisePress(item)}
+      onAdd={activeWorkout ? () => addExerciseToWorkout(item) : undefined}
+      index={index}
+    />
+  ), [activeWorkout]);
+
+  if (loading && exercises.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading exercises...</Text>
         </View>
       </SafeAreaView>
     );
@@ -180,126 +244,218 @@ export default function WorkoutsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Workouts</Text>
-        </View>
-
-        {!activeWorkout ? (
-          // No active workout
-          <View style={styles.startSection}>
-            <Card style={styles.startCard}>
-              <Text style={styles.startEmoji}>💪</Text>
-              <Text style={styles.startTitle}>Ready to train?</Text>
-              <Text style={styles.startSubtitle}>
-                Start a workout to log your exercises and track progress.
-              </Text>
-              <Button
-                title="Start Workout"
-                onPress={startWorkout}
-                fullWidth
-                style={{ marginTop: spacing.lg }}
-              />
-            </Card>
-
-            {/* Exercise Library */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Exercise Library</Text>
-              {exercises.slice(0, 6).map((exercise) => (
-                <ExerciseRow key={exercise.id} exercise={exercise} />
-              ))}
-            </View>
-          </View>
-        ) : (
-          // Active workout
-          <View style={styles.activeWorkout}>
-            <Card style={styles.workoutHeader}>
-              <Text style={styles.workoutTitle}>{activeWorkout.name}</Text>
-              <Text style={styles.workoutMeta}>
-                {activeWorkout.exercises.length} exercises
-              </Text>
-            </Card>
-
-            {activeWorkout.exercises.map((we) => (
-              <ExerciseCard
-                key={we.id}
-                workoutExercise={we}
-                onAddSet={(weight, reps) => addSet(we.id, weight, reps)}
-              />
-            ))}
-
-            <View style={styles.workoutActions}>
-              <Button
-                title="Add Exercise"
-                variant="secondary"
-                onPress={() => setShowExerciseModal(true)}
-                fullWidth
-              />
-              <Button
-                title="Finish Workout"
-                onPress={finishWorkout}
-                fullWidth
-                style={{ marginTop: spacing.md }}
-              />
-            </View>
-          </View>
+      {/* Header */}
+      <Animated.View entering={FadeIn} style={styles.header}>
+        <Text style={styles.title}>Workouts</Text>
+        {activeWorkout && (
+          <TouchableOpacity 
+            style={styles.finishButton} 
+            onPress={finishWorkout}
+          >
+            <Text style={styles.finishButtonText}>Finish</Text>
+          </TouchableOpacity>
         )}
+      </Animated.View>
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+      {/* Active Workout Banner */}
+      {activeWorkout && (
+        <Animated.View entering={FadeInUp.springify()} style={styles.activeWorkoutBanner}>
+          <Text style={styles.activeWorkoutTitle}>🔥 {activeWorkout.name}</Text>
+          <Text style={styles.activeWorkoutMeta}>
+            {activeWorkout.exercises.length} exercises • Tap exercises below to add
+          </Text>
+        </Animated.View>
+      )}
 
-      {/* Exercise Modal */}
-      <Modal visible={showExerciseModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Exercise</Text>
-            <Pressable onPress={() => setShowExerciseModal(false)}>
-              <Text style={styles.modalClose}>Done</Text>
-            </Pressable>
+      {/* Active Workout Exercises */}
+      {activeWorkout && activeWorkout.exercises.length > 0 && (
+        <ScrollView 
+          style={styles.activeExercisesScroll}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.activeExercisesContent}
+        >
+          {activeWorkout.exercises.map((we, index) => (
+            <WorkoutExerciseCard
+              key={we.id}
+              workoutExercise={we}
+              onAddSet={(weight, reps) => addSet(we.id, weight, reps)}
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search exercises..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Text style={styles.clearIcon}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Body Part Filters */}
+      {bodyParts.length > 0 && (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContent}
+        >
+          {bodyParts.map((bp) => (
+            <TouchableOpacity
+              key={bp}
+              style={[
+                styles.filterChip,
+                selectedBodyPart === bp && styles.filterChipActive,
+              ]}
+              onPress={() => handleFilterPress(bp)}
+            >
+              <Text style={styles.filterChipEmoji}>
+                {BODY_PART_EMOJIS[bp.toLowerCase()] || '🏋️'}
+              </Text>
+              <Text style={[
+                styles.filterChipText,
+                selectedBodyPart === bp && styles.filterChipTextActive,
+              ]}>
+                {bp}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Exercise List */}
+      <FlatList
+        data={exercises}
+        renderItem={renderExerciseItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        onEndReached={() => {
+          if (page < totalPages && !loadingMore) {
+            loadExercises(page + 1);
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>🏋️</Text>
+            <Text style={styles.emptyText}>No exercises found</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
           </View>
-          <ScrollView style={styles.modalScroll}>
-            {exercises.map((exercise) => (
-              <ExerciseRow
-                key={exercise.id}
-                exercise={exercise}
-                onPress={() => addExerciseToWorkout(exercise)}
-              />
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+        }
+      />
+
+      {/* Start Workout FAB */}
+      {!activeWorkout && (
+        <TouchableOpacity 
+          style={styles.fab}
+          onPress={startWorkout}
+        >
+          <Text style={styles.fabText}>+ Start Workout</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Exercise Detail Modal */}
+      <ExerciseDetailModal
+        exerciseId={selectedExerciseId}
+        visible={detailModalVisible}
+        onClose={() => setDetailModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
-function ExerciseRow({ exercise, onPress }: { exercise: Exercise; onPress?: () => void }) {
+// Exercise Row with GIF preview
+function ExerciseLibraryRow({ 
+  exercise, 
+  onPress,
+  onAdd,
+  index = 0,
+}: { 
+  exercise: APIExercise; 
+  onPress: () => void;
+  onAdd?: () => void;
+  index?: number;
+}) {
   const scale = useSharedValue(1);
+  const [imageLoaded, setImageLoaded] = useState(false);
   
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
+  const bodyPartEmoji = exercise.bodyPart 
+    ? BODY_PART_EMOJIS[exercise.bodyPart.toLowerCase()] || '🏋️'
+    : '🏋️';
+
   return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={() => { scale.value = withSpring(0.98); }}
-      onPressOut={() => { scale.value = withSpring(1); }}
-      style={[styles.exerciseRow, animatedStyle]}
-    >
-      <View style={styles.exerciseIcon}>
-        <Text style={styles.exerciseEmoji}>🏋️</Text>
-      </View>
-      <View style={styles.exerciseInfo}>
-        <Text style={styles.exerciseName}>{exercise.name}</Text>
-        <Text style={styles.exerciseCategory}>{exercise.category}</Text>
-      </View>
-      <Text style={styles.exerciseArrow}>›</Text>
-    </AnimatedPressable>
+    <Animated.View entering={FadeInUp.delay(index * 30).springify()}>
+      <AnimatedPressable
+        onPress={onPress}
+        onPressIn={() => { scale.value = withSpring(0.98); }}
+        onPressOut={() => { scale.value = withSpring(1); }}
+        style={[styles.exerciseRow, animatedStyle]}
+      >
+        {/* GIF Thumbnail */}
+        <View style={styles.exerciseThumbnail}>
+          {exercise.gifUrl ? (
+            <Image
+              source={{ uri: exercise.gifUrl }}
+              style={styles.exerciseGif}
+              onLoad={() => setImageLoaded(true)}
+            />
+          ) : (
+            <Text style={styles.exerciseEmoji}>{bodyPartEmoji}</Text>
+          )}
+        </View>
+
+        {/* Info */}
+        <View style={styles.exerciseInfo}>
+          <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
+          <View style={styles.exerciseTags}>
+            {exercise.target && (
+              <Text style={styles.exerciseTag}>🎯 {exercise.target}</Text>
+            )}
+            {exercise.equipment && (
+              <Text style={styles.exerciseTag}>
+                {EQUIPMENT_ICONS[exercise.equipment.toLowerCase()] || '⚙️'} {exercise.equipment}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Add Button (if workout active) */}
+        {onAdd ? (
+          <TouchableOpacity style={styles.addButton} onPress={onAdd}>
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.exerciseArrow}>›</Text>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
   );
 }
 
-function ExerciseCard({ 
+// Compact workout exercise card
+function WorkoutExerciseCard({ 
   workoutExercise, 
   onAddSet 
 }: { 
@@ -318,16 +474,31 @@ function ExerciseCard({
   };
 
   return (
-    <Card style={styles.exerciseCard}>
-      <Text style={styles.exerciseCardTitle}>{workoutExercise.exercise.name}</Text>
+    <Card style={styles.workoutExerciseCard}>
+      {/* Thumbnail */}
+      <View style={styles.workoutExerciseThumbnail}>
+        {workoutExercise.exercise.gifUrl ? (
+          <Image
+            source={{ uri: workoutExercise.exercise.gifUrl }}
+            style={styles.workoutExerciseGif}
+          />
+        ) : (
+          <Text style={{ fontSize: 24 }}>🏋️</Text>
+        )}
+      </View>
       
+      <Text style={styles.workoutExerciseTitle} numberOfLines={2}>
+        {workoutExercise.exercise.name}
+      </Text>
+      
+      {/* Sets */}
       {workoutExercise.sets.map((set) => (
-        <View key={set.id} style={styles.setRow}>
-          <Text style={styles.setNumber}>Set {set.setNumber}</Text>
-          <Text style={styles.setData}>{set.weight} lbs × {set.reps} reps</Text>
-        </View>
+        <Text key={set.id} style={styles.setInfo}>
+          Set {set.setNumber}: {set.weight}lbs × {set.reps}
+        </Text>
       ))}
       
+      {/* Add Set */}
       <View style={styles.addSetRow}>
         <TextInput
           style={styles.setInput}
@@ -345,8 +516,8 @@ function ExerciseCard({
           onChangeText={setReps}
           keyboardType="numeric"
         />
-        <Pressable style={styles.addSetButton} onPress={handleAddSet}>
-          <Text style={styles.addSetButtonText}>+</Text>
+        <Pressable style={styles.miniAddButton} onPress={handleAddSet}>
+          <Text style={styles.miniAddButtonText}>+</Text>
         </Pressable>
       </View>
     </Card>
@@ -358,73 +529,153 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   title: {
     ...typography.title1,
     color: colors.text,
   },
-  startSection: {},
-  startCard: {
+  finishButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.success,
+    borderRadius: 12,
+  },
+  finishButtonText: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.textInverse,
+  },
+  activeWorkoutBanner: {
     marginHorizontal: spacing.lg,
-    alignItems: 'center',
-    padding: spacing.xxl,
-  },
-  startEmoji: {
-    fontSize: 48,
+    padding: spacing.md,
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
     marginBottom: spacing.md,
   },
-  startTitle: {
-    ...typography.title2,
+  activeWorkoutTitle: {
+    ...typography.headline,
     color: colors.text,
-    marginBottom: spacing.xs,
   },
-  startSubtitle: {
-    ...typography.subhead,
+  activeWorkoutMeta: {
+    ...typography.caption1,
     color: colors.textSecondary,
-    textAlign: 'center',
+    marginTop: 2,
   },
-  section: {
-    marginTop: spacing.xxl,
-  },
-  sectionTitle: {
-    ...typography.title3,
-    color: colors.text,
-    paddingHorizontal: spacing.lg,
+  activeExercisesScroll: {
+    maxHeight: 220,
     marginBottom: spacing.md,
+  },
+  activeExercisesContent: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    height: 44,
+  },
+  searchIcon: {
+    fontSize: 16,
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    color: colors.text,
+  },
+  clearIcon: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    padding: spacing.xs,
+  },
+  filterScroll: {
+    marginBottom: spacing.sm,
+  },
+  filterContent: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary + '20',
+    borderColor: colors.primary,
+  },
+  filterChipEmoji: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  filterChipText: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  filterChipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  list: {
+    paddingBottom: 100,
   },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
-    padding: spacing.md,
+    padding: spacing.sm,
     backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.md,
+    borderRadius: 12,
     ...shadows.sm,
   },
-  exerciseIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.sm,
+  exerciseThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
+    overflow: 'hidden',
+  },
+  exerciseGif: {
+    width: '100%',
+    height: '100%',
   },
   exerciseEmoji: {
-    fontSize: 20,
+    fontSize: 24,
   },
   exerciseInfo: {
     flex: 1,
@@ -432,112 +683,129 @@ const styles = StyleSheet.create({
   exerciseName: {
     ...typography.headline,
     color: colors.text,
+    textTransform: 'capitalize',
   },
-  exerciseCategory: {
+  exerciseTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  exerciseTag: {
     ...typography.caption1,
     color: colors.textSecondary,
-    textTransform: 'capitalize',
+    fontSize: 11,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    fontSize: 20,
+    color: colors.textInverse,
+    fontWeight: '600',
   },
   exerciseArrow: {
     ...typography.title2,
     color: colors.textTertiary,
   },
-  activeWorkout: {},
-  workoutHeader: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
+  footer: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
   },
-  workoutTitle: {
-    ...typography.title2,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.xxxl,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: spacing.md,
+  },
+  emptyText: {
+    ...typography.headline,
     color: colors.text,
   },
-  workoutMeta: {
-    ...typography.footnote,
+  emptySubtext: {
+    ...typography.body,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  exerciseCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.lg,
+  fab: {
+    position: 'absolute',
+    bottom: 100,
+    right: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: 28,
+    ...shadows.lg,
   },
-  exerciseCardTitle: {
+  fabText: {
     ...typography.headline,
-    color: colors.text,
-    marginBottom: spacing.md,
+    color: colors.textInverse,
   },
-  setRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+  // Workout Exercise Card
+  workoutExerciseCard: {
+    width: 160,
+    padding: spacing.sm,
   },
-  setNumber: {
-    ...typography.subhead,
-    color: colors.textSecondary,
+  workoutExerciseThumbnail: {
+    width: '100%',
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    overflow: 'hidden',
   },
-  setData: {
-    ...typography.subhead,
-    color: colors.text,
+  workoutExerciseGif: {
+    width: '100%',
+    height: '100%',
+  },
+  workoutExerciseTitle: {
+    ...typography.caption1,
     fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+    textTransform: 'capitalize',
+  },
+  setInfo: {
+    ...typography.caption1,
+    color: colors.textSecondary,
   },
   addSetRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    gap: 4,
+    marginTop: spacing.xs,
   },
   setInput: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    ...typography.body,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    ...typography.caption1,
     color: colors.text,
     textAlign: 'center',
   },
-  addSetButton: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.md,
+  miniAddButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addSetButtonText: {
-    ...typography.title2,
+  miniAddButtonText: {
+    fontSize: 16,
     color: colors.textInverse,
-  },
-  workoutActions: {
-    padding: spacing.lg,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: {
-    ...typography.title2,
-    color: colors.text,
-  },
-  modalClose: {
-    ...typography.headline,
-    color: colors.primary,
-  },
-  modalScroll: {
-    flex: 1,
-    padding: spacing.sm,
-  },
-  bottomSpacer: {
-    height: 100,
+    fontWeight: '600',
   },
 });

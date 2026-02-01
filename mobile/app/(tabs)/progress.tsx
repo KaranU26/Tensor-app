@@ -7,6 +7,7 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { API_URL } from '@/config/api';
@@ -62,68 +63,77 @@ export default function ProgressScreen() {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
+        <Animated.View 
+          entering={FadeInUp.delay(50).springify()}
+          style={styles.header}
+        >
           <Text style={styles.title}>Statistic</Text>
           <View style={styles.menuButton}>
             <Text style={styles.menuIcon}>•••</Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Steps Card */}
-        <Card style={styles.statCard}>
-          <View style={styles.statHeader}>
-            <View style={styles.statIcon}>
-              <Text style={styles.iconEmoji}>🏃</Text>
+        <Animated.View entering={FadeInUp.delay(100).springify()}>
+          <Card style={styles.statCard}>
+            <View style={styles.statHeader}>
+              <View style={styles.statIcon}>
+                <Text style={styles.iconEmoji}>🏃</Text>
+              </View>
+              <View style={styles.statInfo}>
+                <Text style={styles.statLabel}>Steps</Text>
+                <Text style={styles.statSubLabel}>Last 7 days</Text>
+              </View>
+              <MiniBarChart 
+                data={stats.steps.weekData} 
+                color={colors.primary}
+              />
             </View>
-            <View style={styles.statInfo}>
-              <Text style={styles.statLabel}>Steps</Text>
-              <Text style={styles.statSubLabel}>Last 7 days</Text>
+            <View style={styles.statValueRow}>
+              <Text style={styles.bigValue}>{stats.steps.total.toLocaleString()}</Text>
+              <Text style={styles.valueUnit}>Steps</Text>
             </View>
-            <MiniBarChart 
-              data={stats.steps.weekData} 
-              color={colors.primary}
-            />
-          </View>
-          <View style={styles.statValueRow}>
-            <Text style={styles.bigValue}>{stats.steps.total.toLocaleString()}</Text>
-            <Text style={styles.valueUnit}>Steps</Text>
-          </View>
-          <View style={styles.weekDays}>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-              <Text key={i} style={styles.dayLabel}>{day}</Text>
-            ))}
-          </View>
-        </Card>
+            <View style={styles.weekDays}>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                <Text key={i} style={styles.dayLabel}>{day}</Text>
+              ))}
+            </View>
+          </Card>
+        </Animated.View>
 
         {/* Heart Rate & Calories Row */}
         <View style={styles.row}>
-          <Card style={styles.halfCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>❤️</Text>
-              <Text style={styles.cardTitle}>Heart Rate</Text>
-            </View>
-            <MiniLineChart 
-              data={stats.heartRate.data}
-              color={colors.primary}
-              width={100}
-              height={40}
-            />
-            <View style={styles.cardValueRow}>
-              <Text style={styles.cardValue}>{stats.heartRate.current}</Text>
-              <Text style={styles.cardUnit}>Bpm</Text>
-            </View>
-          </Card>
+          <Animated.View entering={FadeInUp.delay(150).springify()} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>❤️</Text>
+                <Text style={styles.cardTitle}>Heart Rate</Text>
+              </View>
+              <MiniLineChart 
+                data={stats.heartRate.data}
+                color={colors.primary}
+                width={100}
+                height={40}
+              />
+              <View style={styles.cardValueRow}>
+                <Text style={styles.cardValue}>{stats.heartRate.current}</Text>
+                <Text style={styles.cardUnit}>Bpm</Text>
+              </View>
+            </Card>
+          </Animated.View>
           
-          <Card style={styles.halfCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>⚡</Text>
-              <Text style={styles.cardTitle}>Calories</Text>
-            </View>
-            <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
-              <Text style={styles.caloriesValue}>{stats.calories}</Text>
-            </View>
-            <Text style={styles.cardUnit}>Kcal</Text>
-          </Card>
+          <Animated.View entering={FadeInUp.delay(200).springify()} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>⚡</Text>
+                <Text style={styles.cardTitle}>Calories</Text>
+              </View>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>{stats.calories}</Text>
+              </View>
+              <Text style={styles.cardUnit}>Kcal</Text>
+            </Card>
+          </Animated.View>
         </View>
 
         {/* Water Card */}
