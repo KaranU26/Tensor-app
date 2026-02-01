@@ -3,6 +3,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { colors } from '@/config/theme';
+import { AnimatedTabBar } from '@/components/AnimatedTabBar';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -14,21 +15,10 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.borderLight,
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-        },
         headerShown: false,
       }}>
       <Tabs.Screen
@@ -69,3 +59,4 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+

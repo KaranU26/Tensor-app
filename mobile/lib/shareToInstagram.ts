@@ -6,7 +6,6 @@
 import { Platform, Linking, Alert } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
 import type { RefObject } from 'react';
 import type { View } from 'react-native';
 
@@ -64,15 +63,6 @@ export async function shareToInstagramStories(imageUri: string): Promise<boolean
 
     if (Platform.OS === 'ios') {
       // iOS: Use Instagram's URL scheme for Stories
-      // Move file to a sharable location
-      const filename = `workout-${Date.now()}.png`;
-      const newPath = `${FileSystem.documentDirectory || ''}${filename}`;
-      
-      await FileSystem.copyAsync({
-        from: imageUri,
-        to: newPath,
-      });
-
       // For iOS, we need to use the pasteboard approach
       // This is a simplified version - full implementation needs native module
       const shareUrl = `instagram-stories://share?source_application=com.trainingapp`;
@@ -83,7 +73,7 @@ export async function shareToInstagramStories(imageUri: string): Promise<boolean
         return true;
       } else {
         // Fallback to general share
-        return shareGeneral(newPath);
+        return shareGeneral(imageUri);
       }
     } else {
       // Android: Use sharing intent

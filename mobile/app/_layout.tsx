@@ -43,13 +43,30 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       // Initialize app (database, sync engine, notifications)
-      Promise.all([
-        loadStoredAuth(),
-        initializeApp(),
-        requestNotificationPermission(),
-      ])
-        .then(() => setAppReady(true))
-        .finally(() => SplashScreen.hideAsync());
+      const init = async () => {
+        try {
+          await loadStoredAuth();
+        } catch (e) {
+          console.warn('[Layout] Auth load failed:', e);
+        }
+        
+        try {
+          await initializeApp();
+        } catch (e) {
+          console.warn('[Layout] App init failed:', e);
+        }
+        
+        try {
+          await requestNotificationPermission();
+        } catch (e) {
+          console.warn('[Layout] Notifications failed (OK in Expo Go):', e);
+        }
+        
+        setAppReady(true);
+        SplashScreen.hideAsync();
+      };
+      
+      init();
     }
   }, [loaded]);
 

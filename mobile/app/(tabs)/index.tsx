@@ -7,6 +7,12 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  FadeInUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Href } from 'expo-router';
@@ -14,6 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import { API_URL } from '@/config/api';
 import { colors, typography, spacing } from '@/config/theme';
 import { CalendarStrip, SessionCard, CategoryCard, Card } from '@/components/ui';
+import { AnimatedCard, Skeleton } from '@/components/AnimatedComponents';
 
 interface Routine {
   id: string;
@@ -79,25 +86,39 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Header - Fade in first */}
+        <Animated.View 
+          entering={FadeInDown.delay(100).springify().damping(15)}
+          style={styles.header}
+        >
           <Text style={styles.title}>My Training Plan</Text>
           <View style={styles.profileButton}>
             <Text style={styles.profileEmoji}>👤</Text>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Calendar Strip */}
-        <CalendarStrip
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
-        />
+        {/* Calendar Strip - Slide in from right */}
+        <Animated.View entering={FadeInRight.delay(200).springify()}>
+          <CalendarStrip
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+          />
+        </Animated.View>
 
-        {/* Today's Session */}
-        <View style={styles.section}>
+        {/* Today's Session - Fade in with delay */}
+        <Animated.View 
+          entering={FadeInUp.delay(300).springify().damping(15)}
+          style={styles.section}
+        >
           <Text style={styles.sectionTitle}>Today's Session</Text>
           
-          {todayRoutine ? (
+          {loading ? (
+            <View style={styles.skeletonCard}>
+              <Skeleton width="60%" height={24} style={{ marginBottom: 12 }} />
+              <Skeleton width="40%" height={16} style={{ marginBottom: 8 }} />
+              <Skeleton width="80%" height={40} />
+            </View>
+          ) : todayRoutine ? (
             <SessionCard
               title={todayRoutine.name}
               subtitle={todayRoutine.category}
@@ -114,58 +135,74 @@ export default function HomeScreen() {
               } as Href)}
             />
           ) : (
-            <Card style={styles.emptyCard}>
+            <AnimatedCard style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No session scheduled</Text>
               <Text style={styles.emptySubtitle}>
                 Choose a routine to get started
               </Text>
-            </Card>
+            </AnimatedCard>
           )}
-        </View>
+        </Animated.View>
 
-        {/* Categories */}
-        <View style={styles.section}>
+        {/* Categories - Staggered animation */}
+        <Animated.View 
+          entering={FadeInUp.delay(400).springify().damping(15)}
+          style={styles.section}
+        >
           <Text style={styles.sectionTitle}>Categories</Text>
           
           <View style={styles.categoryRow}>
-            <CategoryCard
-              title="Stretching"
-              subtitle="Flexibility"
-              emoji="🧘"
-              onPress={() => router.push('/(tabs)/stretching' as Href)}
-            />
-            <CategoryCard
-              title="Strength"
-              subtitle="Build muscle"
-              emoji="💪"
-              onPress={() => router.push('/(tabs)/workouts' as Href)}
-            />
+            <Animated.View 
+              entering={FadeInUp.delay(450).springify()}
+              style={{ flex: 1 }}
+            >
+              <CategoryCard
+                title="Stretching"
+                subtitle="Flexibility"
+                emoji="🧘"
+                onPress={() => router.push('/(tabs)/stretching' as Href)}
+              />
+            </Animated.View>
+            <Animated.View 
+              entering={FadeInUp.delay(500).springify()}
+              style={{ flex: 1 }}
+            >
+              <CategoryCard
+                title="Strength"
+                subtitle="Build muscle"
+                emoji="💪"
+                onPress={() => router.push('/(tabs)/workouts' as Href)}
+              />
+            </Animated.View>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Quick Stats */}
+        {/* Quick Stats - Staggered cards */}
         {isAuthenticated && (
-          <View style={styles.section}>
+          <Animated.View 
+            entering={FadeInUp.delay(550).springify().damping(15)}
+            style={styles.section}
+          >
             <Text style={styles.sectionTitle}>This Week</Text>
             
             <View style={styles.statsRow}>
-              <Card style={styles.statCard}>
+              <AnimatedCard style={styles.statCard} delay={600}>
                 <Text style={styles.statIcon}>🔥</Text>
                 <Text style={styles.statValue}>3</Text>
                 <Text style={styles.statLabel}>Workouts</Text>
-              </Card>
-              <Card style={styles.statCard}>
+              </AnimatedCard>
+              <AnimatedCard style={styles.statCard} delay={650}>
                 <Text style={styles.statIcon}>⏱</Text>
                 <Text style={styles.statValue}>45</Text>
                 <Text style={styles.statLabel}>Minutes</Text>
-              </Card>
-              <Card style={styles.statCard}>
+              </AnimatedCard>
+              <AnimatedCard style={styles.statCard} delay={700}>
                 <Text style={styles.statIcon}>⚡</Text>
                 <Text style={styles.statValue}>320</Text>
                 <Text style={styles.statLabel}>Calories</Text>
-              </Card>
+              </AnimatedCard>
             </View>
-          </View>
+          </Animated.View>
         )}
 
         <View style={styles.bottomSpacer} />
@@ -254,6 +291,12 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     ...typography.subhead,
     color: colors.textSecondary,
+  },
+  skeletonCard: {
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 16,
   },
   bottomSpacer: {
     height: 100,
