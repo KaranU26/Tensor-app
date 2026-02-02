@@ -75,7 +75,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
-      <ScrollView 
+      <ScrollView bounces={false} 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -88,7 +88,7 @@ export default function HomeScreen() {
       >
         {/* Header - Fade in first */}
         <Animated.View 
-          entering={FadeInDown.delay(100).springify().damping(15)}
+          entering={FadeInDown.delay(100).duration(300)}
           style={styles.header}
         >
           <Text style={styles.title}>My Training Plan</Text>
@@ -98,7 +98,7 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* Calendar Strip - Slide in from right */}
-        <Animated.View entering={FadeInRight.delay(200).springify()}>
+        <Animated.View entering={FadeInRight.delay(200).duration(250)}>
           <CalendarStrip
             selectedDate={selectedDate}
             onDateSelect={setSelectedDate}
@@ -107,7 +107,7 @@ export default function HomeScreen() {
 
         {/* Today's Session - Fade in with delay */}
         <Animated.View 
-          entering={FadeInUp.delay(300).springify().damping(15)}
+          entering={FadeInUp.delay(300).duration(300)}
           style={styles.section}
         >
           <Text style={styles.sectionTitle}>Today's Session</Text>
@@ -146,14 +146,14 @@ export default function HomeScreen() {
 
         {/* Categories - Staggered animation */}
         <Animated.View 
-          entering={FadeInUp.delay(400).springify().damping(15)}
+          entering={FadeInUp.delay(400).duration(300)}
           style={styles.section}
         >
           <Text style={styles.sectionTitle}>Categories</Text>
           
           <View style={styles.categoryRow}>
             <Animated.View 
-              entering={FadeInUp.delay(450).springify()}
+              entering={FadeInUp.delay(450).duration(250)}
               style={{ flex: 1 }}
             >
               <CategoryCard
@@ -164,7 +164,7 @@ export default function HomeScreen() {
               />
             </Animated.View>
             <Animated.View 
-              entering={FadeInUp.delay(500).springify()}
+              entering={FadeInUp.delay(500).duration(250)}
               style={{ flex: 1 }}
             >
               <CategoryCard
@@ -180,7 +180,7 @@ export default function HomeScreen() {
         {/* Quick Stats - Staggered cards */}
         {isAuthenticated && (
           <Animated.View 
-            entering={FadeInUp.delay(550).springify().damping(15)}
+            entering={FadeInUp.delay(550).duration(300)}
             style={styles.section}
           >
             <Text style={styles.sectionTitle}>This Week</Text>

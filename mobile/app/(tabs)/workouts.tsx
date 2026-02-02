@@ -259,7 +259,7 @@ export default function WorkoutsScreen() {
 
       {/* Active Workout Banner */}
       {activeWorkout && (
-        <Animated.View entering={FadeInUp.springify()} style={styles.activeWorkoutBanner}>
+        <Animated.View entering={FadeInUp.duration(250)} style={styles.activeWorkoutBanner}>
           <Text style={styles.activeWorkoutTitle}>🔥 {activeWorkout.name}</Text>
           <Text style={styles.activeWorkoutMeta}>
             {activeWorkout.exercises.length} exercises • Tap exercises below to add
@@ -269,7 +269,7 @@ export default function WorkoutsScreen() {
 
       {/* Active Workout Exercises */}
       {activeWorkout && activeWorkout.exercises.length > 0 && (
-        <ScrollView 
+        <ScrollView bounces={false} 
           style={styles.activeExercisesScroll}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -304,7 +304,7 @@ export default function WorkoutsScreen() {
 
       {/* Body Part Filters */}
       {bodyParts.length > 0 && (
-        <ScrollView 
+        <ScrollView bounces={false} 
           horizontal 
           showsHorizontalScrollIndicator={false}
           style={styles.filterScroll}
@@ -406,7 +406,7 @@ function ExerciseLibraryRow({
     : '🏋️';
 
   return (
-    <Animated.View entering={FadeInUp.delay(index * 30).springify()}>
+    <Animated.View entering={FadeInUp.delay(index * 30).duration(250)}>
       <AnimatedPressable
         onPress={onPress}
         onPressIn={() => { scale.value = withSpring(0.98); }}

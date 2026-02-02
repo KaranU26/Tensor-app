@@ -42,7 +42,7 @@ export function BentoCell({
 
   return (
     <Animated.View
-      entering={FadeInUp.delay(delay).springify().damping(15)}
+      entering={FadeInUp.delay(delay).duration(300)}
       style={[styles.cell, sizeStyle, style]}
     >
       {gradient ? (

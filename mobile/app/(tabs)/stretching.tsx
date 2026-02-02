@@ -141,7 +141,7 @@ export default function StretchingScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
-      <ScrollView 
+      <ScrollView bounces={false} 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={

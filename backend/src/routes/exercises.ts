@@ -179,7 +179,7 @@ router.get('/target/:target', async (req: Request, res: Response) => {
 
 /**
  * GET /exercises/:id/gif
- * Proxy endpoint to fetch GIF from ExerciseDB (handles auth)
+ * Serves GIF from local storage, falls back to API if missing
  */
 router.get('/:id/gif', async (req: Request, res: Response) => {
   try {
@@ -194,6 +194,20 @@ router.get('/:id/gif', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Exercise not found' });
     }
 
+    const path = await import('path');
+    const fs = await import('fs');
+    
+    // Check if GIF exists locally
+    const gifPath = path.join(__dirname, '../../public/gifs', `${exercise.externalId}.gif`);
+    
+    if (fs.existsSync(gifPath)) {
+      // Serve from local file (fast path)
+      res.setHeader('Content-Type', 'image/gif');
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      return res.sendFile(gifPath);
+    }
+
+    // Fallback: Fetch from API and save locally
     const rapidApiKey = process.env.RAPIDAPI_KEY;
     const rapidApiHost = process.env.RAPIDAPI_HOST || 'exercisedb.p.rapidapi.com';
 
@@ -201,7 +215,7 @@ router.get('/:id/gif', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    const imageUrl = `https://${rapidApiHost}/image?exerciseId=${exercise.externalId}&resolution=180`;
+    const imageUrl = `https://${rapidApiHost}/image?exerciseId=${exercise.externalId}&resolution=360`;
 
     const response = await fetch(imageUrl, {
       headers: {
@@ -215,14 +229,22 @@ router.get('/:id/gif', async (req: Request, res: Response) => {
       return res.status(response.status).send('Failed to fetch image');
     }
 
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/gif');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    
     const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
+    const gifBuffer = Buffer.from(buffer);
+    
+    // Save to disk for future requests (self-healing cache)
+    const gifsDir = path.join(__dirname, '../../public/gifs');
+    if (!fs.existsSync(gifsDir)) {
+      fs.mkdirSync(gifsDir, { recursive: true });
+    }
+    fs.writeFileSync(gifPath, gifBuffer);
+
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.send(gifBuffer);
   } catch (error) {
-    console.error('Error proxying GIF:', error);
-    res.status(500).json({ error: 'Proxy error' });
+    console.error('Error serving GIF:', error);
+    res.status(500).json({ error: 'GIF error' });
   }
 });
 

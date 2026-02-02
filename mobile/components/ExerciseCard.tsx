@@ -36,7 +36,7 @@ export default function ExerciseCard({ exercise, onPress, index = 0 }: ExerciseC
 
   return (
     <Animated.View 
-      entering={FadeInRight.delay(index * 50).springify()}
+      entering={FadeInRight.delay(index * 50).duration(250)}
       style={styles.container}
     >
       <TouchableOpacity

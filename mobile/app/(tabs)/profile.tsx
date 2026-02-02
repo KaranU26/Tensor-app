@@ -50,7 +50,7 @@ function SettingRow({ icon, title, subtitle, onPress, danger, rightElement, dela
   };
 
   return (
-    <Animated.View entering={FadeInUp.delay(delay).springify().damping(15)}>
+    <Animated.View entering={FadeInUp.delay(delay).duration(300)}>
       <AnimatedPressable
         onPress={handlePress}
         onPressIn={() => { scale.value = withSpring(0.98); }}
@@ -88,7 +88,7 @@ function ThemeToggleRow({ delay = 0 }: ThemeToggleRowProps) {
   };
 
   return (
-    <Animated.View entering={FadeInUp.delay(delay).springify().damping(15)}>
+    <Animated.View entering={FadeInUp.delay(delay).duration(300)}>
       <View style={styles.settingRow}>
         <View style={styles.settingIcon}>
           <Text style={styles.settingEmoji}>{isDark ? '🌙' : '☀️'}</Text>
@@ -139,17 +139,17 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView bounces={false} style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.View 
-          entering={FadeInUp.delay(50).springify()}
+          entering={FadeInUp.delay(50).duration(250)}
           style={styles.header}
         >
           <Text style={styles.title}>Profile</Text>
         </Animated.View>
 
         {/* Profile Card */}
-        <Animated.View entering={FadeInUp.delay(100).springify()}>
+        <Animated.View entering={FadeInUp.delay(100).duration(250)}>
           <Card style={styles.profileCard}>
             <View style={styles.avatarContainer}>
               <View style={styles.avatar}>
@@ -177,19 +177,19 @@ export default function ProfileScreen() {
         {/* Quick Stats */}
         {isAuthenticated && (
           <View style={styles.statsRow}>
-            <Animated.View entering={FadeInUp.delay(150).springify()} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInUp.delay(150).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
                 <Text style={styles.statValue}>12</Text>
                 <Text style={styles.statLabel}>Workouts</Text>
               </Card>
             </Animated.View>
-            <Animated.View entering={FadeInUp.delay(200).springify()} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInUp.delay(200).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
                 <Text style={styles.statValue}>5</Text>
                 <Text style={styles.statLabel}>Day Streak</Text>
               </Card>
             </Animated.View>
-            <Animated.View entering={FadeInUp.delay(250).springify()} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInUp.delay(250).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
                 <Text style={styles.statValue}>3</Text>
                 <Text style={styles.statLabel}>PRs</Text>

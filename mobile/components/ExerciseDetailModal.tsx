@@ -9,12 +9,12 @@ import {
   Text,
   StyleSheet,
   Modal,
-  Image,
   ScrollView,
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -90,7 +90,7 @@ export default function ExerciseDetailModal({
         />
         
         <Animated.View
-          entering={SlideInDown.springify().damping(15)}
+          entering={SlideInDown.duration(300)}
           style={[styles.container, { paddingBottom: insets.bottom + spacing.md }]}
         >
           {/* Handle bar */}
@@ -118,7 +118,7 @@ export default function ExerciseDetailModal({
             <ScrollView 
               style={styles.scrollView}
               showsVerticalScrollIndicator={false}
-              bounces={true}
+              bounces={false}
             >
               {/* GIF */}
               <Animated.View entering={FadeIn.delay(100)}>
@@ -127,7 +127,8 @@ export default function ExerciseDetailModal({
                     <Image
                       source={{ uri: exercise.gifUrl }}
                       style={styles.gif}
-                      resizeMode="contain"
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
                     />
                   ) : (
                     <View style={styles.placeholderGif}>
@@ -312,11 +313,13 @@ const styles = StyleSheet.create({
   },
   gifContainer: {
     width: '100%',
-    aspectRatio: 1.2,
+    maxWidth: 360,
+    aspectRatio: 1, // Match 360x360 GIF ratio
     backgroundColor: colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: spacing.lg,
+    alignSelf: 'center',
   },
   gif: {
     width: '100%',

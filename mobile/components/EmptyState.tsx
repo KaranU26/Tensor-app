@@ -63,28 +63,28 @@ export function EmptyState({
   return (
     <View style={[styles.container, style]}>
       <Animated.View
-        entering={FadeIn.delay(100).springify()}
+        entering={FadeIn.delay(100).duration(250)}
         style={[styles.emojiContainer, emojiStyle]}
       >
         <Text style={styles.emoji}>{emoji}</Text>
       </Animated.View>
       
       <Animated.Text
-        entering={FadeInUp.delay(200).springify()}
+        entering={FadeInUp.delay(200).duration(250)}
         style={styles.title}
       >
         {title}
       </Animated.Text>
       
       <Animated.Text
-        entering={FadeInUp.delay(300).springify()}
+        entering={FadeInUp.delay(300).duration(250)}
         style={styles.message}
       >
         {message}
       </Animated.Text>
       
       {action && onAction && (
-        <Animated.View entering={FadeInUp.delay(400).springify()}>
+        <Animated.View entering={FadeInUp.delay(400).duration(250)}>
           <PremiumButton
             title={action}
             onPress={onAction}

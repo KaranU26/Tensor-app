@@ -17,7 +17,11 @@ export interface ExerciseDBExercise {
   target: string;
   secondaryMuscles: string[];
   instructions: string[];
-  gifUrl: string;
+  gifUrl?: string;
+  // Additional fields from upgraded API tier
+  description?: string;
+  difficulty?: string;
+  category?: string;
 }
 
 interface ExerciseDBResponse extends Array<ExerciseDBExercise> {}

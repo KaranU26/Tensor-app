@@ -53,6 +53,10 @@ async function syncExercises() {
                 secondaryMuscles: JSON.stringify(exercise.secondaryMuscles || []),
                 instructions: JSON.stringify(exercise.instructions || []),
                 gifUrl: exercise.gifUrl,
+                // Additional fields from upgraded API
+                description: exercise.description || null,
+                difficulty: exercise.difficulty || 'beginner',
+                category: exercise.category || mapEquipmentToCategory(exercise.equipment),
               },
             });
             updated++;
@@ -65,11 +69,14 @@ async function syncExercises() {
                 bodyPart: exercise.bodyPart,
                 equipment: exercise.equipment,
                 target: exercise.target,
-                category: mapEquipmentToCategory(exercise.equipment),
+                category: exercise.category || mapEquipmentToCategory(exercise.equipment),
                 primaryMuscles: JSON.stringify([exercise.target]),
                 secondaryMuscles: JSON.stringify(exercise.secondaryMuscles || []),
                 instructions: JSON.stringify(exercise.instructions || []),
                 gifUrl: exercise.gifUrl,
+                // Additional fields from upgraded API
+                description: exercise.description || null,
+                difficulty: exercise.difficulty || 'beginner',
               },
             });
             created++;

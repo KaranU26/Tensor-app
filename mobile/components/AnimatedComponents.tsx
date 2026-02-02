@@ -136,7 +136,7 @@ export function AnimatedCard({ children, onPress, style, delay = 0 }: AnimatedCa
 
   const content = (
     <Animated.View
-      entering={FadeInUp.delay(delay).springify()}
+      entering={FadeInUp.delay(delay).duration(250)}
       style={[styles.card, animatedStyle, style]}
     >
       {children}
@@ -219,8 +219,8 @@ export function StaggeredItem({ children, index, style }: StaggeredItemProps) {
   
   return (
     <Animated.View
-      entering={FadeInUp.delay(delay).springify().damping(15)}
-      layout={LinearTransition.springify()}
+      entering={FadeInUp.delay(delay).duration(300)}
+      layout={LinearTransition.duration(250)}
       style={style}
     >
       {children}

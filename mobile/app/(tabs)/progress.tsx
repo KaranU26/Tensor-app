@@ -51,7 +51,7 @@ export default function ProgressScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
-      <ScrollView 
+      <ScrollView bounces={false} 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -64,7 +64,7 @@ export default function ProgressScreen() {
       >
         {/* Header */}
         <Animated.View 
-          entering={FadeInUp.delay(50).springify()}
+          entering={FadeInUp.delay(50).duration(250)}
           style={styles.header}
         >
           <Text style={styles.title}>Statistic</Text>
@@ -74,7 +74,7 @@ export default function ProgressScreen() {
         </Animated.View>
 
         {/* Steps Card */}
-        <Animated.View entering={FadeInUp.delay(100).springify()}>
+        <Animated.View entering={FadeInUp.delay(100).duration(250)}>
           <Card style={styles.statCard}>
             <View style={styles.statHeader}>
               <View style={styles.statIcon}>
@@ -103,7 +103,7 @@ export default function ProgressScreen() {
 
         {/* Heart Rate & Calories Row */}
         <View style={styles.row}>
-          <Animated.View entering={FadeInUp.delay(150).springify()} style={{ flex: 1 }}>
+          <Animated.View entering={FadeInUp.delay(150).duration(250)} style={{ flex: 1 }}>
             <Card style={styles.halfCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>❤️</Text>
@@ -122,7 +122,7 @@ export default function ProgressScreen() {
             </Card>
           </Animated.View>
           
-          <Animated.View entering={FadeInUp.delay(200).springify()} style={{ flex: 1 }}>
+          <Animated.View entering={FadeInUp.delay(200).duration(250)} style={{ flex: 1 }}>
             <Card style={styles.halfCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>⚡</Text>
