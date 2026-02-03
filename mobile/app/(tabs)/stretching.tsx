@@ -9,11 +9,13 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Href } from 'expo-router';
 import { API_URL } from '@/config/api';
-import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
-import { Card, CategoryCard } from '@/components/ui';
+import { colors, gradients, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { CategoryCard, ErrorBanner } from '@/components/ui';
+import { EmptyState } from '@/components/EmptyState';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -73,9 +75,14 @@ function RoutineCard({ routine, onPress }: { routine: Routine; onPress: () => vo
       onPressOut={handlePressOut}
       style={[styles.routineCard, animatedStyle]}
     >
-      <View style={styles.routineEmoji}>
+      <LinearGradient
+        colors={gradients.primaryReverse}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.routineEmoji}
+      >
         <Text style={styles.emojiText}>{getEmoji(routine.category)}</Text>
-      </View>
+      </LinearGradient>
       <View style={styles.routineContent}>
         <Text style={styles.routineName}>{routine.name}</Text>
         <Text style={styles.routineDescription} numberOfLines={1}>
@@ -95,6 +102,7 @@ export default function StretchingScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchRoutines = async () => {
     try {
@@ -102,9 +110,13 @@ export default function StretchingScreen() {
       if (response.ok) {
         const data = await response.json();
         setRoutines(data.routines || []);
+        setErrorMessage(null);
+      } else {
+        setErrorMessage('Unable to load routines right now.');
       }
     } catch (error) {
       console.log('Failed to fetch routines:', error);
+      setErrorMessage('Unable to load routines right now.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -155,6 +167,7 @@ export default function StretchingScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Stretching</Text>
+          <Text style={styles.subtitle}>Build flexibility & recovery</Text>
         </View>
 
         {/* Categories */}
@@ -176,17 +189,36 @@ export default function StretchingScreen() {
         {/* Routines */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>All Routines</Text>
-          
-          {routines.map((routine) => (
-            <RoutineCard
-              key={routine.id}
-              routine={routine}
-              onPress={() => router.push({
-                pathname: '/player',
-                params: { routineId: routine.id }
-              } as Href)}
+
+          {errorMessage && (
+            <ErrorBanner
+              title="Couldn't load routines"
+              message={errorMessage}
+              actionLabel="Retry"
+              onAction={fetchRoutines}
+              style={styles.errorBanner}
             />
-          ))}
+          )}
+          
+          {routines.length === 0 ? (
+            <EmptyState
+              type="routines"
+              onAction={fetchRoutines}
+              customActionLabel="Refresh"
+              style={styles.emptyState}
+            />
+          ) : (
+            routines.map((routine) => (
+              <RoutineCard
+                key={routine.id}
+                routine={routine}
+                onPress={() => router.push({
+                  pathname: '/routine',
+                  params: { routineId: routine.id }
+                } as Href)}
+              />
+            ))
+          )}
         </View>
 
         <View style={styles.bottomSpacer} />
@@ -217,6 +249,11 @@ const styles = StyleSheet.create({
     ...typography.title1,
     color: colors.text,
   },
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   section: {
     marginBottom: spacing.xl,
   },
@@ -238,18 +275,20 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     padding: spacing.lg,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     ...shadows.sm,
   },
   routineEmoji: {
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
+    overflow: 'hidden',
   },
   emojiText: {
     fontSize: 24,
@@ -277,7 +316,14 @@ const styles = StyleSheet.create({
   },
   routineArrow: {
     ...typography.title2,
-    color: colors.textTertiary,
+    color: colors.accent,
+  },
+  errorBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  emptyState: {
+    marginHorizontal: spacing.lg,
   },
   bottomSpacer: {
     height: 100,

@@ -9,6 +9,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
   FadeInUp,
@@ -20,8 +21,8 @@ import { router } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '@/config/theme';
 import { useAuthStore } from '@/store/authStore';
 import { Card, Button } from '@/components/ui';
-import { GlassCard } from '@/components/GlassCard';
 import { playHaptic } from '@/lib/sounds';
+import { PremiumButton } from '@/components/PremiumButton';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -115,6 +116,7 @@ function ThemeToggleRow({ delay = 0 }: ThemeToggleRowProps) {
 
 export default function ProfileScreen() {
   const { user, isAuthenticated, logout } = useAuthStore();
+  const isPro = false;
 
   const handleLogout = async () => {
     Alert.alert(
@@ -146,15 +148,23 @@ export default function ProfileScreen() {
           style={styles.header}
         >
           <Text style={styles.title}>Profile</Text>
+          <Text style={styles.subtitle}>Manage your account & preferences</Text>
         </Animated.View>
 
         {/* Profile Card */}
         <Animated.View entering={FadeInUp.delay(100).duration(250)}>
           <Card style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarEmoji}>😊</Text>
-              </View>
+              <LinearGradient
+                colors={gradients.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
+              >
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarEmoji}>😊</Text>
+                </View>
+              </LinearGradient>
             </View>
             <Text style={styles.userName}>
               {isAuthenticated ? (user?.username || user?.email?.split('@')[0]) : 'Guest'}
@@ -173,6 +183,35 @@ export default function ProfileScreen() {
             )}
           </Card>
         </Animated.View>
+
+        {!isPro && (
+          <Animated.View entering={FadeInUp.delay(130).duration(250)}>
+            <Pressable onPress={() => router.push('/paywall')}>
+              <LinearGradient
+                colors={gradients.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.proCard}
+              >
+                <View style={styles.proCardTop}>
+                  <Text style={styles.proBadge}>TENSOR PRO</Text>
+                  <Text style={styles.proTitle}>Unlock advanced analytics</Text>
+                  <Text style={styles.proSubtitle}>
+                    Track ROM progress, recovery insights, and unlimited routines.
+                  </Text>
+                </View>
+                <PremiumButton
+                  title="Upgrade to Pro"
+                  onPress={() => router.push('/paywall')}
+                  size="sm"
+                  variant="secondary"
+                  fullWidth
+                  style={styles.proButton}
+                />
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        )}
 
         {/* Quick Stats */}
         {isAuthenticated && (
@@ -213,35 +252,35 @@ export default function ProfileScreen() {
             icon="⚙️"
             title="Preferences"
             subtitle="Units, notifications"
-            onPress={() => {}}
+            onPress={() => router.push('/settings')}
             delay={350}
           />
           <SettingRow
             icon="🎯"
             title="Goals"
             subtitle="Fitness targets"
-            onPress={() => {}}
+            onPress={() => router.push('/goals')}
             delay={400}
           />
           <SettingRow
             icon="📊"
             title="Body Metrics"
             subtitle="Weight, measurements"
-            onPress={() => {}}
+            onPress={() => router.push('/body-metrics')}
             delay={450}
           />
           <SettingRow
             icon="🔔"
             title="Notifications"
             subtitle="Reminders, rest alerts"
-            onPress={() => {}}
+            onPress={() => router.push('/notifications')}
             delay={500}
           />
           <SettingRow
             icon="📳"
             title="Haptics & Sounds"
             subtitle="Tactile feedback"
-            onPress={() => {}}
+            onPress={() => router.push('/settings')}
             delay={550}
           />
         </View>
@@ -275,12 +314,12 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account</Text>
             
-            <SettingRow
-              icon="🔒"
-              title="Privacy"
-              onPress={() => {}}
-              delay={750}
-            />
+          <SettingRow
+            icon="🔒"
+            title="Privacy"
+            onPress={() => router.push('/settings')}
+            delay={750}
+          />
             <SettingRow
               icon="🚪"
               title="Log Out"
@@ -316,20 +355,63 @@ const styles = StyleSheet.create({
     ...typography.title1,
     color: colors.text,
   },
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   profileCard: {
     marginHorizontal: spacing.lg,
     alignItems: 'center',
     padding: spacing.xl,
     marginBottom: spacing.lg,
   },
+  proCard: {
+    marginHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  proCardTop: {
+    marginBottom: spacing.md,
+  },
+  proBadge: {
+    ...typography.caption1,
+    color: colors.textInverse,
+    letterSpacing: 1.2,
+    marginBottom: spacing.xs,
+  },
+  proTitle: {
+    ...typography.title3,
+    color: colors.textInverse,
+  },
+  proSubtitle: {
+    ...typography.subhead,
+    color: colors.textInverse,
+    opacity: 0.9,
+    marginTop: spacing.xs,
+  },
+  proButton: {
+    marginTop: spacing.sm,
+  },
   avatarContainer: {
     marginBottom: spacing.md,
+  },
+  avatarRing: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -354,6 +436,8 @@ const styles = StyleSheet.create({
   statCard: {
     alignItems: 'center',
     paddingVertical: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   statValue: {
     ...typography.title2,
@@ -369,7 +453,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.footnote,
-    color: colors.textSecondary,
+    color: colors.accent,
     textTransform: 'uppercase',
     letterSpacing: 1,
     paddingHorizontal: spacing.lg,
@@ -381,7 +465,9 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     padding: spacing.md,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     borderRadius: borderRadius.md,
     ...shadows.sm,
   },
@@ -389,7 +475,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primary + '14',
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -426,4 +514,3 @@ const styles = StyleSheet.create({
     height: 100,
   },
 });
-

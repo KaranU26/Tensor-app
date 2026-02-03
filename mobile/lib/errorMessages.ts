@@ -97,7 +97,8 @@ export type EmptyStateType =
   | 'history'
   | 'search'
   | 'favorites'
-  | 'achievements';
+  | 'achievements'
+  | 'flexibility';
 
 interface EmptyStateMessage {
   title: string;
@@ -150,6 +151,12 @@ export function getEmptyStateMessage(type: EmptyStateType): EmptyStateMessage {
       title: "Achievements await",
       message: "Train consistently to unlock badges and milestones.",
       emoji: "🏆",
+    },
+    flexibility: {
+      title: "Your flexibility journey starts here",
+      message: "Set a goal and track ROM improvements over time.",
+      action: "Create goal",
+      emoji: "🤸",
     },
   };
 

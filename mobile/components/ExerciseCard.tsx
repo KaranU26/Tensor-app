@@ -112,9 +112,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   card: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     ...shadows.md,
   },
   imageContainer: {
@@ -165,10 +167,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   targetTag: {
-    backgroundColor: colors.primaryLight + '20',
+    backgroundColor: colors.primary + '12',
   },
   equipmentTag: {
-    backgroundColor: colors.primaryLight + '20',
+    backgroundColor: colors.accent + '12',
   },
   tagText: {
     fontSize: 10,

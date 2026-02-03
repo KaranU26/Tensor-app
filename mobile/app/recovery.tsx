@@ -4,11 +4,13 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRecovery } from '@/hooks/useRecovery';
 import { RecoveryHeatmap } from '@/components/RecoveryHeatmap';
-import { colors, typography, spacing, borderRadius } from '@/config/theme';
+import { colors, typography, spacing, gradients } from '@/config/theme';
+import { Card } from '@/components/ui';
 
 export default function RecoveryScreen() {
   const {
@@ -28,6 +30,7 @@ export default function RecoveryScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -35,16 +38,32 @@ export default function RecoveryScreen() {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={styles.header}
+        >
           <Text style={styles.title}>Recovery Status</Text>
           <Text style={styles.subtitle}>Based on your recent workouts</Text>
         </View>
 
         {/* Recommendation Card */}
-        <View style={styles.recommendationCard}>
-          <Text style={styles.emoji}>{getReadinessEmoji()}</Text>
-          <Text style={styles.recommendationText}>{recommendation}</Text>
-        </View>
+        <Card style={styles.recommendationCard}>
+          <View style={styles.readinessRow}>
+            <LinearGradient
+              colors={gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.readinessRing}
+            >
+              <View style={styles.readinessInner}>
+                <Text style={styles.readinessScore}>{readinessScore}</Text>
+                <Text style={styles.readinessLabel}>Score</Text>
+              </View>
+            </LinearGradient>
+            <View style={styles.recommendationCopy}>
+              <Text style={styles.emoji}>{getReadinessEmoji()}</Text>
+              <Text style={styles.recommendationText}>{recommendation}</Text>
+            </View>
+          </View>
+        </Card>
 
         {/* Recovery Heatmap */}
         <RecoveryHeatmap
@@ -53,7 +72,7 @@ export default function RecoveryScreen() {
         />
 
         {/* Tips Section */}
-        <View style={styles.tipsCard}>
+        <Card style={styles.tipsCard}>
           <Text style={styles.tipsTitle}>Recovery Tips</Text>
           <View style={styles.tipRow}>
             <Text style={styles.tipEmoji}>💤</Text>
@@ -71,7 +90,7 @@ export default function RecoveryScreen() {
             <Text style={styles.tipEmoji}>🧘</Text>
             <Text style={styles.tipText}>Light stretching speeds recovery</Text>
           </View>
-        </View>
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -98,25 +117,49 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   recommendationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
-    gap: spacing.md,
+  },
+  readinessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+  },
+  readinessRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    padding: 3,
+  },
+  readinessInner: {
+    flex: 1,
+    borderRadius: 42,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  readinessScore: {
+    ...typography.title2,
+    color: colors.text,
+  },
+  readinessLabel: {
+    ...typography.caption2,
+    color: colors.textSecondary,
+  },
+  recommendationCopy: {
+    flex: 1,
   },
   emoji: {
-    fontSize: 36,
+    fontSize: 24,
+    marginBottom: spacing.xs,
   },
   recommendationText: {
-    flex: 1,
     ...typography.headline,
     color: colors.text,
   },
   tipsCard: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginTop: spacing.lg,
   },

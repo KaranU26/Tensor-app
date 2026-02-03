@@ -3,22 +3,47 @@
  * Handles workout reminders, rest timer alerts, and social notifications
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// Configure notification handler (may fail in Expo Go)
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch (error) {
-  console.warn('[Notifications] Handler setup failed:', error);
+type NotificationsModule = typeof import('expo-notifications');
+
+let Notifications: NotificationsModule | null = null;
+let handlerConfigured = false;
+
+async function getNotificationsModule(): Promise<NotificationsModule | null> {
+  // Expo Go no longer supports expo-notifications on Android.
+  if (Constants.appOwnership === 'expo') {
+    return null;
+  }
+
+  if (Notifications) {
+    return Notifications;
+  }
+
+  try {
+    Notifications = await import('expo-notifications');
+    if (!handlerConfigured && Notifications) {
+      try {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+        handlerConfigured = true;
+      } catch (error) {
+        console.warn('[Notifications] Handler setup failed:', error);
+      }
+    }
+    return Notifications;
+  } catch (error) {
+    console.warn('[Notifications] Module unavailable:', error);
+    return null;
+  }
 }
 
 export interface NotificationSettings {
@@ -33,36 +58,42 @@ export interface NotificationSettings {
 // ============================================
 
 export async function requestNotificationPermission(): Promise<boolean> {
+  const module = await getNotificationsModule();
+  if (!module) return false;
+
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('workout-reminders', {
+    await module.setNotificationChannelAsync('workout-reminders', {
       name: 'Workout Reminders',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: module.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FF6B6B',
     });
-    
-    await Notifications.setNotificationChannelAsync('rest-timer', {
+
+    await module.setNotificationChannelAsync('rest-timer', {
       name: 'Rest Timer',
-      importance: Notifications.AndroidImportance.MAX,
+      importance: module.AndroidImportance.MAX,
       vibrationPattern: [0, 500],
       lightColor: '#3B82F6',
     });
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  const { status: existingStatus } = await module.getPermissionsAsync();
   let finalStatus = existingStatus;
-  
+
   if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await module.requestPermissionsAsync();
     finalStatus = status;
   }
-  
+
   return finalStatus === 'granted';
 }
 
 export async function getExpoPushToken(): Promise<string | null> {
+  const module = await getNotificationsModule();
+  if (!module) return null;
+
   try {
-    const token = await Notifications.getExpoPushTokenAsync({
+    const token = await module.getExpoPushTokenAsync({
       projectId: 'your-project-id', // Replace with actual Expo project ID
     });
     return token.data;
@@ -80,31 +111,37 @@ let restTimerNotificationId: string | null = null;
 
 export async function scheduleRestTimerNotification(
   durationSeconds: number
-): Promise<string> {
+): Promise<string | null> {
+  const module = await getNotificationsModule();
+  if (!module) return null;
+
   // Cancel any existing timer
   if (restTimerNotificationId) {
     await cancelRestTimerNotification();
   }
 
-  const id = await Notifications.scheduleNotificationAsync({
+  const id = await module.scheduleNotificationAsync({
     content: {
       title: '⏱️ Rest Complete!',
       body: 'Time to start your next set',
       sound: true,
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      type: module.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds: durationSeconds,
     },
   });
-  
+
   restTimerNotificationId = id;
   return id;
 }
 
 export async function cancelRestTimerNotification(): Promise<void> {
+  const module = await getNotificationsModule();
+  if (!module) return;
+
   if (restTimerNotificationId) {
-    await Notifications.cancelScheduledNotificationAsync(restTimerNotificationId);
+    await module.cancelScheduledNotificationAsync(restTimerNotificationId);
     restTimerNotificationId = null;
   }
 }
@@ -118,20 +155,23 @@ export async function scheduleWorkoutReminder(
   minute: number,
   weekdays: number[] = [1, 2, 3, 4, 5] // Mon-Fri
 ): Promise<string[]> {
+  const module = await getNotificationsModule();
+  if (!module) return [];
+
   const notificationIds: string[] = [];
-  
+
   // Cancel existing reminders
   await cancelAllWorkoutReminders();
-  
+
   for (const weekday of weekdays) {
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await module.scheduleNotificationAsync({
       content: {
         title: '💪 Time to Train!',
         body: "Don't skip your workout today",
         sound: true,
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        type: module.SchedulableTriggerInputTypes.WEEKLY,
         weekday,
         hour,
         minute,
@@ -139,17 +179,19 @@ export async function scheduleWorkoutReminder(
     });
     notificationIds.push(id);
   }
-  
+
   return notificationIds;
 }
 
 export async function cancelAllWorkoutReminders(): Promise<void> {
-  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-  
+  const module = await getNotificationsModule();
+  if (!module) return;
+
+  const scheduledNotifications = await module.getAllScheduledNotificationsAsync();
+
   for (const notification of scheduledNotifications) {
-    // Check if it's a workout reminder by title
     if (notification.content.title?.includes('Time to Train')) {
-      await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      await module.cancelScheduledNotificationAsync(notification.identifier);
     }
   }
 }
@@ -162,15 +204,18 @@ export async function sendLocalNotification(
   title: string,
   body: string,
   data?: Record<string, unknown>
-): Promise<string> {
-  return Notifications.scheduleNotificationAsync({
+): Promise<string | null> {
+  const module = await getNotificationsModule();
+  if (!module) return null;
+
+  return module.scheduleNotificationAsync({
     content: {
       title,
       body,
       data,
       sound: true,
     },
-    trigger: null, // Immediate
+    trigger: null,
   });
 }
 
@@ -197,47 +242,3 @@ export async function notifyPR(
     { type: 'personal_record' }
   );
 }
-
-// ============================================
-// Notification Listeners
-// ============================================
-
-export function addNotificationReceivedListener(
-  callback: (notification: Notifications.Notification) => void
-): Notifications.Subscription {
-  return Notifications.addNotificationReceivedListener(callback);
-}
-
-export function addNotificationResponseListener(
-  callback: (response: Notifications.NotificationResponse) => void
-): Notifications.Subscription {
-  return Notifications.addNotificationResponseReceivedListener(callback);
-}
-
-// ============================================
-// Badge Management
-// ============================================
-
-export async function setBadgeCount(count: number): Promise<void> {
-  await Notifications.setBadgeCountAsync(count);
-}
-
-export async function clearBadge(): Promise<void> {
-  await Notifications.setBadgeCountAsync(0);
-}
-
-export default {
-  requestNotificationPermission,
-  getExpoPushToken,
-  scheduleRestTimerNotification,
-  cancelRestTimerNotification,
-  scheduleWorkoutReminder,
-  cancelAllWorkoutReminders,
-  sendLocalNotification,
-  notifyWorkoutComplete,
-  notifyPR,
-  addNotificationReceivedListener,
-  addNotificationResponseListener,
-  setBadgeCount,
-  clearBadge,
-};

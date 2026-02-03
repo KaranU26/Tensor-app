@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring 
 } from 'react-native-reanimated';
-import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, gradients, typography, spacing, borderRadius, shadows } from '@/config/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -54,9 +55,14 @@ export function SessionCard({
       <View style={styles.content}>
         <View style={styles.textContent}>
           {dayNumber ? (
-            <View style={styles.dayBadge}>
+            <LinearGradient
+              colors={gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.dayBadge}
+            >
               <Text style={styles.dayBadgeText}>Day {dayNumber}</Text>
-            </View>
+            </LinearGradient>
           ) : null}
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -83,6 +89,12 @@ export function SessionCard({
           )}
           {onPlayPress && (
             <Pressable onPress={onPlayPress} style={styles.playButton}>
+              <LinearGradient
+                colors={gradients.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.playButtonGradient}
+              />
               <Text style={styles.playIcon}>▶</Text>
             </Pressable>
           )}
@@ -94,9 +106,11 @@ export function SessionCard({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     ...shadows.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
@@ -109,7 +123,6 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   dayBadge: {
-    backgroundColor: colors.text,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -161,7 +174,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -175,9 +188,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  playButtonGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   playIcon: {
     color: colors.textInverse,

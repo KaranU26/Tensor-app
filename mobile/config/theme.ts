@@ -1,104 +1,99 @@
 /**
  * Design System - Theme Tokens
- * Premium aesthetic with 60-30-10 color rule
- * 
- * Research: "Avoid pure black (#000000) - use soft darks like #0A0A0F"
+ * Tensor brand palette: warm surfaces + plum/flame accents
  */
 
-// Light mode colors
+const fonts = {
+  headingBold: 'Sora_700Bold',
+  headingSemi: 'Sora_600SemiBold',
+  bodyRegular: 'Manrope_400Regular',
+  bodyMedium: 'Manrope_500Medium',
+};
+
+// Light mode colors (primary experience)
 export const lightColors = {
-  // Primary
-  primary: '#FF6B6B',       // Coral/salmon accent
-  primaryLight: '#FF8A8A',
-  primaryDark: '#E55555',
-  
+  // Brand
+  primary: '#FF8A3D',       // Flame
+  primaryLight: '#FFB071',
+  primaryDark: '#E56E21',
+  accent: '#7B3FA1',        // Plum
+  accentDark: '#4B2D72',
+
   // Backgrounds
-  background: '#FFFFFF',
-  surface: '#F8F9FA',
+  background: '#F6F3F1',    // Warm base
+  surface: '#FFFFFF',       // Cards
   surfaceElevated: '#FFFFFF',
-  
+
   // Text
-  text: '#1A1A2E',
-  textSecondary: '#6B7280',
-  textTertiary: '#9CA3AF',
+  text: '#1A1226',          // Ink
+  textSecondary: '#5B5364',
+  textTertiary: '#8C8296',
   textInverse: '#FFFFFF',
-  
+
   // Borders & Dividers
-  border: '#E5E7EB',
-  borderLight: '#F3F4F6',
-  
+  border: '#E9E1DB',
+  borderLight: '#F3EEE9',
+
   // Status
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
-  
+  success: '#2FB67C',
+  warning: '#F2B33D',
+  error: '#F45B5B',
+  info: '#7B3FA1',
+
   // Chart colors
-  chartBlue: '#3B82F6',
-  chartOrange: '#F59E0B',
-  chartRed: '#EF4444',
-  chartGreen: '#10B981',
+  chartBlue: '#4E8CFF',
+  chartOrange: '#FF8A3D',
+  chartRed: '#F45B5B',
+  chartGreen: '#2FB67C',
+  chartPurple: '#7B3FA1',
 };
 
-// Dark mode colors - Premium aesthetic
-// Following 60-30-10 rule:
-// 60% - Dark neutrals (#0A0A0F, #14141A)
-// 30% - Surface neutral (#1E1E26)
-// 10% - Accent gradient (coral)
+// Dark mode colors (optional)
 export const darkColors = {
-  // Primary - slightly warmer for dark mode
-  primary: '#FF7B7B',
-  primaryLight: '#FF9A9A',
-  primaryDark: '#E56565',
-  
-  // Backgrounds - soft blacks, never pure #000
-  background: '#0A0A0F',     // Deep charcoal, not pure black
-  surface: '#14141A',        // Elevated surface
-  surfaceElevated: '#1E1E26', // Cards, modals
-  
-  // Text
-  text: '#F5F5F7',           // Soft white
-  textSecondary: '#A1A1AA',
-  textTertiary: '#6B6B76',
-  textInverse: '#0A0A0F',
-  
-  // Borders & Dividers
-  border: '#2A2A35',
-  borderLight: '#1E1E26',
-  
-  // Status - slightly muted for dark mode
-  success: '#22C55E',
-  warning: '#FBBF24',
-  error: '#F87171',
-  info: '#60A5FA',
-  
-  // Chart colors
-  chartBlue: '#60A5FA',
-  chartOrange: '#FBBF24',
-  chartRed: '#F87171',
-  chartGreen: '#22C55E',
+  primary: '#FF9A54',
+  primaryLight: '#FFB879',
+  primaryDark: '#E37229',
+  accent: '#9B5AC2',
+  accentDark: '#6B3A93',
+
+  background: '#0F0B16',
+  surface: '#171321',
+  surfaceElevated: '#1E182B',
+
+  text: '#F5F2F7',
+  textSecondary: '#B7AFC2',
+  textTertiary: '#8B8296',
+  textInverse: '#0F0B16',
+
+  border: '#2A2336',
+  borderLight: '#1E182B',
+
+  success: '#3DD598',
+  warning: '#F4C24D',
+  error: '#F9797A',
+  info: '#9B5AC2',
+
+  chartBlue: '#6EA1FF',
+  chartOrange: '#FF9A54',
+  chartRed: '#F9797A',
+  chartGreen: '#3DD598',
+  chartPurple: '#9B5AC2',
 };
 
-// Default to light mode (can be switched based on system preference)
+// Default to light mode
 export const colors = lightColors;
 
 // Premium gradients
 export const gradients = {
-  // Primary CTA gradient
-  primary: ['#FF6B6B', '#FF8E53'] as const,
-  primaryReverse: ['#FF8E53', '#FF6B6B'] as const,
-  
-  // Success gradient
-  success: ['#10B981', '#34D399'] as const,
-  
-  // Premium dark gradient for cards
-  darkCard: ['#1E1E26', '#14141A'] as const,
-  
-  // Subtle glow effect
-  glow: ['rgba(255, 107, 107, 0.2)', 'rgba(255, 107, 107, 0)'] as const,
-  
-  // Background gradient
-  backgroundDark: ['#0A0A0F', '#14141A'] as const,
+  // Primary CTA gradient (plum -> flame)
+  primary: ['#7B3FA1', '#FF8A3D'] as const,
+  primaryReverse: ['#FF8A3D', '#7B3FA1'] as const,
+
+  // Subtle background wash
+  background: ['#F6F3F1', '#FFFFFF'] as const,
+
+  // Accent glow
+  glow: ['rgba(123, 63, 161, 0.25)', 'rgba(255, 138, 61, 0.08)'] as const,
 };
 
 export const spacing = {
@@ -115,7 +110,7 @@ export const borderRadius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
+  xl: 24,   // Buttons
   xxl: 32,
   full: 9999,
 };
@@ -123,70 +118,70 @@ export const borderRadius = {
 export const typography = {
   // Headings
   largeTitle: {
-    fontSize: 34,
-    fontWeight: '700' as const,
-    lineHeight: 41,
-    letterSpacing: 0.37,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: 0.2,
+    fontFamily: fonts.headingBold,
   },
   title1: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    lineHeight: 34,
-    letterSpacing: 0.36,
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: 0.2,
+    fontFamily: fonts.headingBold,
   },
   title2: {
-    fontSize: 22,
-    fontWeight: '600' as const,
-    lineHeight: 28,
-    letterSpacing: 0.35,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: 0.2,
+    fontFamily: fonts.headingSemi,
   },
   title3: {
-    fontSize: 20,
-    fontWeight: '600' as const,
-    lineHeight: 25,
-    letterSpacing: 0.38,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: 0.2,
+    fontFamily: fonts.headingSemi,
   },
-  
+
   // Body
   headline: {
     fontSize: 17,
-    fontWeight: '600' as const,
     lineHeight: 22,
-    letterSpacing: -0.41,
+    letterSpacing: 0.1,
+    fontFamily: fonts.bodyMedium,
   },
   body: {
     fontSize: 17,
-    fontWeight: '400' as const,
-    lineHeight: 22,
-    letterSpacing: -0.41,
+    lineHeight: 24,
+    letterSpacing: 0.1,
+    fontFamily: fonts.bodyRegular,
   },
   callout: {
     fontSize: 16,
-    fontWeight: '400' as const,
-    lineHeight: 21,
-    letterSpacing: -0.32,
+    lineHeight: 22,
+    letterSpacing: 0.1,
+    fontFamily: fonts.bodyMedium,
   },
   subhead: {
     fontSize: 15,
-    fontWeight: '400' as const,
     lineHeight: 20,
-    letterSpacing: -0.24,
+    letterSpacing: 0.1,
+    fontFamily: fonts.bodyRegular,
   },
   footnote: {
     fontSize: 13,
-    fontWeight: '400' as const,
     lineHeight: 18,
-    letterSpacing: -0.08,
+    letterSpacing: 0.1,
+    fontFamily: fonts.bodyRegular,
   },
   caption1: {
     fontSize: 12,
-    fontWeight: '400' as const,
     lineHeight: 16,
+    fontFamily: fonts.bodyRegular,
   },
   caption2: {
     fontSize: 11,
-    fontWeight: '400' as const,
     lineHeight: 13,
+    fontFamily: fonts.bodyRegular,
   },
 };
 
@@ -194,7 +189,7 @@ export const shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
@@ -202,7 +197,7 @@ export const shadows = {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 3,
   },
   lg: {
@@ -214,10 +209,10 @@ export const shadows = {
   },
   // Colored glow shadow for CTAs
   glow: {
-    shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowColor: '#7B3FA1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
     elevation: 8,
   },
 };
@@ -242,4 +237,3 @@ export const theme = {
 };
 
 export default theme;
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Modal,
   Alert,
   ActivityIndicator,
   StatusBar,
@@ -14,6 +13,7 @@ import {
   Image,
   TouchableOpacity,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
@@ -22,14 +22,17 @@ import Animated, {
   FadeIn,
   FadeInUp,
 } from 'react-native-reanimated';
-import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, gradients, typography, spacing, borderRadius, shadows } from '@/config/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { API_URL } from '@/config/api';
-import { Card, Button, SessionCard } from '@/components/ui';
+import { Card, ErrorBanner } from '@/components/ui';
+import { EmptyState } from '@/components/EmptyState';
 import { fetchExercises, fetchBodyParts } from '@/lib/api/exercises';
 import { Exercise as APIExercise, BODY_PART_EMOJIS, EQUIPMENT_ICONS } from '@/types/exercise';
 import ExerciseDetailModal from '@/components/ExerciseDetailModal';
 import { playHaptic } from '@/lib/sounds';
+import { router } from 'expo-router';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -55,7 +58,6 @@ interface Workout {
 export default function WorkoutsScreen() {
   const [exercises, setExercises] = useState<APIExercise[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<Workout | null>(null);
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,7 +65,11 @@ export default function WorkoutsScreen() {
   const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [restTimerRemaining, setRestTimerRemaining] = useState<number | null>(null);
+  const restIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { accessToken, isAuthenticated } = useAuthStore();
+  const preferences = useSettingsStore((state) => state.preferences);
   
   // Exercise detail modal
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
@@ -71,6 +77,14 @@ export default function WorkoutsScreen() {
 
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (restIntervalRef.current) {
+        clearInterval(restIntervalRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -91,8 +105,10 @@ export default function WorkoutsScreen() {
       setExercises(exerciseData.exercises);
       setTotalPages(exerciseData.pagination.totalPages);
       setBodyParts(bodyPartData);
+      setErrorMessage(null);
     } catch (error) {
       console.log('Failed to fetch exercises:', error);
+      setErrorMessage('Unable to load exercises right now.');
     } finally {
       setLoading(false);
     }
@@ -118,8 +134,10 @@ export default function WorkoutsScreen() {
       
       setTotalPages(response.pagination.totalPages);
       setPage(pageNum);
+      setErrorMessage(null);
     } catch (error) {
       console.log('Failed to fetch exercises:', error);
+      setErrorMessage('Unable to load exercises right now.');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -175,7 +193,7 @@ export default function WorkoutsScreen() {
       ...activeWorkout,
       exercises: [...activeWorkout.exercises, newWorkoutExercise],
     });
-    setShowExerciseModal(false);
+    
     
     // Optionally sync with backend
     try {
@@ -211,13 +229,57 @@ export default function WorkoutsScreen() {
           : we
       ),
     });
+
+    if (preferences.autoRestTimer) {
+      startRestTimer(preferences.restTimerSeconds);
+    }
+  };
+
+  const startRestTimer = (durationSeconds: number) => {
+    if (restIntervalRef.current) {
+      clearInterval(restIntervalRef.current);
+    }
+    setRestTimerRemaining(durationSeconds);
+    restIntervalRef.current = setInterval(() => {
+      setRestTimerRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          if (restIntervalRef.current) clearInterval(restIntervalRef.current);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cancelRestTimer = () => {
+    if (restIntervalRef.current) {
+      clearInterval(restIntervalRef.current);
+    }
+    setRestTimerRemaining(null);
+  };
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const finishWorkout = async () => {
     if (!activeWorkout) return;
     playHaptic('success');
-    Alert.alert('🎉 Workout Complete!', 'Great job finishing your workout!');
     setActiveWorkout(null);
+    if (preferences.autoStretchPrompt) {
+      Alert.alert(
+        'Workout Complete',
+        'Want a quick recovery stretch?',
+        [
+          { text: 'Maybe later', style: 'cancel' },
+          { text: 'Start Stretch', onPress: () => router.push('/(tabs)/stretching') },
+        ]
+      );
+    } else {
+      Alert.alert('🎉 Workout Complete!', 'Great job finishing your workout!');
+    }
   };
 
   const renderExerciseItem = useCallback(({ item, index }: { item: APIExercise; index: number }) => (
@@ -265,6 +327,30 @@ export default function WorkoutsScreen() {
             {activeWorkout.exercises.length} exercises • Tap exercises below to add
           </Text>
         </Animated.View>
+      )}
+
+      {/* Rest Timer */}
+      {restTimerRemaining !== null && (
+        <View style={styles.restTimerBanner}>
+          <View>
+            <Text style={styles.restTimerLabel}>Rest Timer</Text>
+            <Text style={styles.restTimerValue}>{formatTimer(restTimerRemaining)}</Text>
+          </View>
+          <Pressable style={styles.restTimerButton} onPress={cancelRestTimer}>
+            <Text style={styles.restTimerButtonText}>Skip</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {errorMessage && (
+        <View style={styles.errorBannerWrap}>
+          <ErrorBanner
+            title="Couldn't load exercises"
+            message={errorMessage}
+            actionLabel="Retry"
+            onAction={() => loadExercises(1, true)}
+          />
+        </View>
       )}
 
       {/* Active Workout Exercises */}
@@ -355,9 +441,18 @@ export default function WorkoutsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🏋️</Text>
-            <Text style={styles.emptyText}>No exercises found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+            <EmptyState
+              type={searchQuery || selectedBodyPart ? 'search' : 'exercises'}
+              onAction={
+                searchQuery || selectedBodyPart
+                  ? () => {
+                      setSearchQuery('');
+                      setSelectedBodyPart(null);
+                    }
+                  : undefined
+              }
+              customActionLabel={searchQuery || selectedBodyPart ? 'Clear filters' : undefined}
+            />
           </View>
         }
       />
@@ -368,6 +463,12 @@ export default function WorkoutsScreen() {
           style={styles.fab}
           onPress={startWorkout}
         >
+          <LinearGradient
+            colors={gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabGradient}
+          />
           <Text style={styles.fabText}>+ Start Workout</Text>
         </TouchableOpacity>
       )}
@@ -444,6 +545,12 @@ function ExerciseLibraryRow({
         {/* Add Button (if workout active) */}
         {onAdd ? (
           <TouchableOpacity style={styles.addButton} onPress={onAdd}>
+            <LinearGradient
+              colors={gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.addButtonGradient}
+            />
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         ) : (
@@ -468,8 +575,9 @@ function WorkoutExerciseCard({
   const handleAddSet = () => {
     if (weight && reps) {
       onAddSet(parseFloat(weight), parseInt(reps));
-      setWeight('');
-      setReps('');
+      // Keep previous values for faster logging
+      setWeight(weight);
+      setReps(reps);
     }
   };
 
@@ -517,6 +625,12 @@ function WorkoutExerciseCard({
           keyboardType="numeric"
         />
         <Pressable style={styles.miniAddButton} onPress={handleAddSet}>
+          <LinearGradient
+            colors={gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.miniAddButtonGradient}
+          />
           <Text style={styles.miniAddButtonText}>+</Text>
         </Pressable>
       </View>
@@ -555,7 +669,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.success,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
   },
   finishButtonText: {
     ...typography.body,
@@ -565,11 +679,43 @@ const styles = StyleSheet.create({
   activeWorkoutBanner: {
     marginHorizontal: spacing.lg,
     padding: spacing.md,
-    backgroundColor: colors.primary + '15',
-    borderRadius: 12,
+    backgroundColor: colors.primary + '14',
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.primary + '30',
+    borderColor: colors.primary + '33',
     marginBottom: spacing.md,
+  },
+  restTimerBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  restTimerLabel: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+  },
+  restTimerValue: {
+    ...typography.title2,
+    color: colors.text,
+  },
+  restTimerButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.accent + '12',
+    borderWidth: 1,
+    borderColor: colors.accent + '33',
+  },
+  restTimerButtonText: {
+    ...typography.caption1,
+    color: colors.accent,
   },
   activeWorkoutTitle: {
     ...typography.headline,
@@ -592,11 +738,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     height: 44,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   searchIcon: {
     fontSize: 16,
@@ -628,7 +776,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: spacing.sm,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.borderLight,
   },
   filterChipActive: {
     backgroundColor: colors.primary + '20',
@@ -656,15 +804,17 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     padding: spacing.sm,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     ...shadows.sm,
   },
   exerciseThumbnail: {
     width: 56,
     height: 56,
     borderRadius: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -700,9 +850,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   addButtonText: {
     fontSize: 20,
@@ -723,18 +876,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xxxl,
   },
-  emptyEmoji: {
-    fontSize: 64,
+  errorBannerWrap: {
+    marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
-  },
-  emptyText: {
-    ...typography.headline,
-    color: colors.text,
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
   },
   fab: {
     position: 'absolute',
@@ -742,9 +886,12 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    backgroundColor: colors.primary,
     borderRadius: 28,
+    overflow: 'hidden',
     ...shadows.lg,
+  },
+  fabGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   fabText: {
     ...typography.headline,
@@ -787,7 +934,9 @@ const styles = StyleSheet.create({
   },
   setInput: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 4,
@@ -799,9 +948,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  miniAddButtonGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   miniAddButtonText: {
     fontSize: 16,

@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, spacing, borderRadius, shadows, gradients } from '@/config/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -133,7 +133,9 @@ export function FloatingActionButton({
           style={[fabStyle]}
         >
           <LinearGradient
-            colors={['#FF6B6B', '#FF8E53']}
+            colors={gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={styles.fab}
           >
             <Text style={styles.fabIcon}>{icon}</Text>
@@ -224,7 +226,7 @@ function FABActionItem({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: 'rgba(15, 11, 22, 0.7)',
     zIndex: 998,
   },
   container: {
@@ -261,7 +263,9 @@ const styles = StyleSheet.create({
     right: 0,
   },
   labelContainer: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
@@ -278,6 +282,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.md,

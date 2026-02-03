@@ -34,14 +34,17 @@ export function Card({
 const styles = StyleSheet.create({
   base: {
     borderRadius: borderRadius.lg,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   elevated: {
     ...shadows.md,
   },
   flat: {
     backgroundColor: colors.surface,
+    borderWidth: 0,
   },
   outlined: {
     borderWidth: 1,

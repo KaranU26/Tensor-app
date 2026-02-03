@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.headline,
-    color: colors.text,
+    color: colors.accent,
     marginBottom: spacing.md,
   },
   shareButtons: {
@@ -279,12 +279,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.lg,
     borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   instagramButton: {
-    backgroundColor: 'rgba(225, 48, 108, 0.1)',
+    backgroundColor: colors.primary + '12',
+    borderColor: colors.primary + '33',
   },
   twitterButton: {
-    backgroundColor: 'rgba(29, 155, 240, 0.1)',
+    backgroundColor: colors.accent + '12',
+    borderColor: colors.accent + '33',
   },
   moreButton: {
     backgroundColor: colors.surface,

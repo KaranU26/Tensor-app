@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, ImageBackground, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring 
 } from 'react-native-reanimated';
-import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, gradients, typography, spacing, borderRadius, shadows } from '@/config/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const CARD_WIDTH = (Dimensions.get('window').width - spacing.lg * 3) / 2;
@@ -62,10 +63,15 @@ export function CategoryCard({
           {content}
         </ImageBackground>
       ) : (
-        <View style={styles.placeholderBackground}>
+        <LinearGradient
+          colors={gradients.primaryReverse}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.placeholderBackground}
+        >
           <Text style={styles.emoji}>{emoji}</Text>
           {content}
-        </View>
+        </LinearGradient>
       )}
     </AnimatedPressable>
   );
@@ -78,6 +84,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
     ...shadows.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   imageBackground: {
     flex: 1,
@@ -87,7 +95,6 @@ const styles = StyleSheet.create({
   },
   placeholderBackground: {
     flex: 1,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -99,12 +106,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     padding: spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(26, 18, 38, 0.35)',
   },
   title: {
     ...typography.title3,
     color: colors.textInverse,
-    fontStyle: 'italic',
   },
   subtitle: {
     ...typography.caption1,

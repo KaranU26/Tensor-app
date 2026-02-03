@@ -6,13 +6,13 @@ import {
   Pressable,
   Dimensions,
   Vibration,
-  Alert,
   StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useAuthStore } from '@/store/authStore';
 import { API_URL } from '@/config/api';
+import { Button, Card } from '@/components/ui';
+import { colors, gradients, spacing, typography, borderRadius, shadows } from '@/config/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -44,17 +44,17 @@ interface SessionStretch {
   heldDurationSeconds: number;
   feltTight: boolean;
   positionInRoutine: number;
+  tightnessLevel?: 'tight' | 'moderate' | 'loose';
 }
 
 export default function PlayerScreen() {
   const { routineId } = useLocalSearchParams<{ routineId: string }>();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [currentTotal, setCurrentTotal] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [sessionStarted, setSessionStarted] = useState<Date | null>(null);
   const [completedStretches, setCompletedStretches] = useState<SessionStretch[]>([]);
@@ -63,7 +63,6 @@ export default function PlayerScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stretchStartTimeRef = useRef<number>(0);
 
-  // Fetch routine
   useEffect(() => {
     if (routineId) {
       fetchRoutine();
@@ -80,7 +79,9 @@ export default function PlayerScreen() {
       setRoutine(data.routine);
       if (data.routine?.stretches[0]) {
         const firstStretch = data.routine.stretches[0];
-        setTimeRemaining(firstStretch.customDurationSeconds || firstStretch.stretch.durationSeconds);
+        const duration = firstStretch.customDurationSeconds || firstStretch.stretch.durationSeconds;
+        setTimeRemaining(duration);
+        setCurrentTotal(duration);
       }
     } catch (error) {
       console.error('Failed to fetch routine:', error);
@@ -89,7 +90,6 @@ export default function PlayerScreen() {
     }
   };
 
-  // Play completion sound and vibrate
   const playCompletionFeedback = useCallback(async () => {
     try {
       Vibration.vibrate(200);
@@ -98,7 +98,6 @@ export default function PlayerScreen() {
     }
   }, []);
 
-  // Start timer
   const startTimer = useCallback(() => {
     if (!routine || !sessionStarted) {
       setSessionStarted(new Date());
@@ -109,7 +108,6 @@ export default function PlayerScreen() {
     timerRef.current = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          // Time's up - show tight prompt
           clearInterval(timerRef.current!);
           setIsPlaying(false);
           playCompletionFeedback();
@@ -121,7 +119,6 @@ export default function PlayerScreen() {
     }, 1000);
   }, [routine, sessionStarted, playCompletionFeedback]);
 
-  // Pause timer
   const pauseTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -129,49 +126,48 @@ export default function PlayerScreen() {
     setIsPlaying(false);
   }, []);
 
-  // Handle tight prompt response
-  const handleTightResponse = useCallback((feltTight: boolean) => {
+  const handleTightResponse = useCallback((level: 'tight' | 'moderate' | 'loose') => {
     if (!routine) return;
 
     const currentStretch = routine.stretches[currentIndex];
     const heldDuration = Math.floor((Date.now() - stretchStartTimeRef.current) / 1000);
+    const feltTight = level === 'tight';
 
-    // Record completed stretch
     setCompletedStretches((prev) => [
       ...prev,
       {
         stretchId: currentStretch.stretchId,
         heldDurationSeconds: Math.max(heldDuration, currentStretch.stretch.durationSeconds),
         feltTight,
+        tightnessLevel: level,
         positionInRoutine: currentIndex + 1,
       },
     ]);
 
     setShowTightPrompt(false);
 
-    // Move to next stretch or finish
     if (currentIndex < routine.stretches.length - 1) {
       const nextIndex = currentIndex + 1;
       const nextStretch = routine.stretches[nextIndex];
+      const duration = nextStretch.customDurationSeconds || nextStretch.stretch.durationSeconds;
       setCurrentIndex(nextIndex);
-      setTimeRemaining(nextStretch.customDurationSeconds || nextStretch.stretch.durationSeconds);
-      // Auto-start next stretch after brief pause
+      setTimeRemaining(duration);
+      setCurrentTotal(duration);
       setTimeout(() => startTimer(), 500);
     } else {
-      // Routine complete - save session
       saveSession([
         ...completedStretches,
         {
           stretchId: currentStretch.stretchId,
           heldDurationSeconds: Math.max(heldDuration, currentStretch.stretch.durationSeconds),
           feltTight,
+          tightnessLevel: level,
           positionInRoutine: currentIndex + 1,
         },
       ]);
     }
   }, [routine, currentIndex, completedStretches, startTimer]);
 
-  // Skip current stretch
   const skipStretch = useCallback(() => {
     if (!routine) return;
 
@@ -180,20 +176,19 @@ export default function PlayerScreen() {
     if (currentIndex < routine.stretches.length - 1) {
       const nextIndex = currentIndex + 1;
       const nextStretch = routine.stretches[nextIndex];
+      const duration = nextStretch.customDurationSeconds || nextStretch.stretch.durationSeconds;
       setCurrentIndex(nextIndex);
-      setTimeRemaining(nextStretch.customDurationSeconds || nextStretch.stretch.durationSeconds);
+      setTimeRemaining(duration);
+      setCurrentTotal(duration);
     } else {
-      // If skipping last stretch, just save what we have
       saveSession(completedStretches);
     }
   }, [routine, currentIndex, pauseTimer, completedStretches]);
 
-  // Save session to backend
   const saveSession = async (stretches: SessionStretch[]) => {
     if (!routine || !sessionStarted) return;
 
     try {
-      // For now, just navigate to completion - auth required for actual save
       router.push({
         pathname: '/routine-complete' as const,
         params: {
@@ -208,75 +203,80 @@ export default function PlayerScreen() {
     }
   };
 
-  // Format time display
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return mins > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${secs}`;
   };
 
-  // Calculate progress
   const getProgress = () => {
     if (!routine) return 0;
-    const currentStretch = routine.stretches[currentIndex];
-    const totalDuration = currentStretch.customDurationSeconds || currentStretch.stretch.durationSeconds;
+    const totalDuration = currentTotal || 1;
     return 1 - timeRemaining / totalDuration;
+  };
+
+  const extendTimer = (seconds: number) => {
+    setTimeRemaining((prev) => prev + seconds);
+    setCurrentTotal((prev) => prev + seconds);
   };
 
   if (loading || !routine) {
     return (
-      <View style={[styles.container, styles.centered, isDark && styles.containerDark]}>
-        <Text style={[styles.loadingText, isDark && styles.textLight]}>Loading routine...</Text>
-      </View>
+      <LinearGradient colors={gradients.background} style={[styles.container, styles.centered]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+        <Text style={styles.loadingText}>Loading routine...</Text>
+      </LinearGradient>
     );
   }
 
   const currentStretch = routine.stretches[currentIndex];
   const progress = getProgress();
 
-  // Tight prompt overlay
   if (showTightPrompt) {
     return (
-      <View style={[styles.container, styles.centered, isDark && styles.containerDark]}>
+      <LinearGradient colors={gradients.background} style={[styles.container, styles.centered]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <Text style={styles.promptEmoji}>🤔</Text>
-        <Text style={[styles.promptTitle, isDark && styles.textLight]}>
-          Did this area feel tight?
-        </Text>
-        <Text style={[styles.promptSubtitle, isDark && styles.subtitleDark]}>
-          This helps us track your progress
-        </Text>
+        <Text style={styles.promptTitle}>How did that feel?</Text>
+        <Text style={styles.promptSubtitle}>This helps us track your progress</Text>
         <View style={styles.promptButtons}>
           <Pressable
-            style={[styles.promptButton, { backgroundColor: '#F44336' }]}
-            onPress={() => handleTightResponse(true)}
+            style={[styles.promptButton, styles.promptButtonTight]}
+            onPress={() => handleTightResponse('tight')}
           >
-            <Text style={styles.promptButtonText}>Yes, Tight</Text>
+            <Text style={styles.promptButtonText}>Tight</Text>
           </Pressable>
           <Pressable
-            style={[styles.promptButton, { backgroundColor: '#4CAF50' }]}
-            onPress={() => handleTightResponse(false)}
+            style={[styles.promptButton, styles.promptButtonModerate]}
+            onPress={() => handleTightResponse('moderate')}
           >
-            <Text style={styles.promptButtonText}>Felt Good</Text>
+            <Text style={styles.promptButtonText}>Moderate</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.promptButton, styles.promptButtonGood]}
+            onPress={() => handleTightResponse('loose')}
+          >
+            <Text style={styles.promptButtonText}>Loose</Text>
           </Pressable>
         </View>
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
-      {/* Header */}
+    <LinearGradient colors={gradients.background} style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.closeButton}>
           <Text style={styles.closeButtonText}>✕</Text>
         </Pressable>
-        <Text style={[styles.routineName, isDark && styles.textLight]}>{routine.name}</Text>
-        <Text style={[styles.progressText, isDark && styles.subtitleDark]}>
+        <Text style={styles.routineName}>{routine.name}</Text>
+        <Text style={styles.progressText}>
           {currentIndex + 1} of {routine.stretches.length}
         </Text>
       </View>
 
-      {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
         {routine.stretches.map((_, index) => (
           <View
@@ -294,130 +294,145 @@ export default function PlayerScreen() {
         ))}
       </View>
 
-      {/* Stretch Info */}
       <View style={styles.stretchContainer}>
         <Text style={styles.stretchEmoji}>🧘</Text>
-        <Text style={[styles.stretchName, isDark && styles.textLight]}>
-          {currentStretch.stretch.name}
-        </Text>
-        <Text style={[styles.stretchMuscles, isDark && styles.subtitleDark]}>
+        <Text style={styles.stretchName}>{currentStretch.stretch.name}</Text>
+        <Text style={styles.stretchMuscles}>
           {currentStretch.stretch.primaryMuscles.join(' • ')}
         </Text>
 
-        {/* Timer */}
-        <View style={styles.timerContainer}>
-          <Text style={[styles.timer, isDark && styles.textLight]}>{formatTime(timeRemaining)}</Text>
+        <View style={styles.timerOuter}>
+          <LinearGradient
+            colors={gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.timerGradient}
+          >
+            <View style={styles.timerInner}>
+              <Text style={styles.timer}>{formatTime(timeRemaining)}</Text>
+              <Text style={styles.timerLabel}>seconds</Text>
+            </View>
+          </LinearGradient>
         </View>
 
-        {/* Instructions */}
+        <View style={styles.timerActions}>
+          <Pressable style={styles.timerAction} onPress={() => extendTimer(15)}>
+            <Text style={styles.timerActionText}>+15s</Text>
+          </Pressable>
+          <Pressable style={styles.timerAction} onPress={skipStretch}>
+            <Text style={styles.timerActionText}>Skip</Text>
+          </Pressable>
+        </View>
+
         {currentStretch.stretch.instructions && (
-          <Text style={[styles.instructions, isDark && styles.subtitleDark]}>
-            {currentStretch.stretch.instructions}
-          </Text>
+          <Card variant="flat" style={styles.coachCard} padding="md">
+            <Text style={styles.coachTitle}>Coach Tip</Text>
+            <Text style={styles.instructions}>{currentStretch.stretch.instructions}</Text>
+          </Card>
         )}
       </View>
 
-      {/* Controls */}
       <View style={styles.controls}>
-        {currentIndex > 0 && (
+        {currentIndex > 0 ? (
           <Pressable
-            style={styles.secondaryButton}
+            style={styles.secondaryPill}
             onPress={() => {
               pauseTimer();
               const prevIndex = currentIndex - 1;
               const prevStretch = routine.stretches[prevIndex];
+              const duration = prevStretch.customDurationSeconds || prevStretch.stretch.durationSeconds;
               setCurrentIndex(prevIndex);
-              setTimeRemaining(prevStretch.customDurationSeconds || prevStretch.stretch.durationSeconds);
+              setTimeRemaining(duration);
+              setCurrentTotal(duration);
             }}
           >
-            <Text style={styles.secondaryButtonText}>← Previous</Text>
+            <Text style={styles.secondaryPillText}>Previous</Text>
           </Pressable>
+        ) : (
+          <View style={styles.controlSpacer} />
         )}
 
-        <Pressable
-          style={[styles.mainButton, isPlaying && styles.pauseButton]}
+        <Button
+          title={isPlaying ? 'Pause' : 'Start'}
           onPress={isPlaying ? pauseTimer : startTimer}
-        >
-          <Text style={styles.mainButtonText}>{isPlaying ? '⏸ Pause' : '▶ Start'}</Text>
-        </Pressable>
+          size="lg"
+          style={styles.mainButton}
+        />
 
-        <Pressable style={styles.secondaryButton} onPress={skipStretch}>
-          <Text style={styles.secondaryButtonText}>Skip →</Text>
+        <Pressable style={styles.secondaryPill} onPress={() => extendTimer(30)}>
+          <Text style={styles.secondaryPillText}>+30s</Text>
         </Pressable>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    paddingTop: 60,
-  },
-  containerDark: {
-    backgroundColor: '#0d0d1a',
+    padding: spacing.lg,
+    paddingTop: 56,
   },
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  textLight: {
-    color: '#ffffff',
-  },
-  subtitleDark: {
-    color: '#888',
-  },
   loadingText: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.textSecondary,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   closeButton: {
     position: 'absolute',
     left: 0,
     top: 0,
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeButtonText: {
-    fontSize: 24,
-    color: '#888',
+    fontSize: 18,
+    color: colors.textSecondary,
   },
   routineName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a2e',
-    marginBottom: 4,
+    ...typography.title2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
   },
   progressText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption1,
+    color: colors.textSecondary,
   },
   progressBarContainer: {
     flexDirection: 'row',
-    gap: 4,
-    marginBottom: 32,
+    gap: 6,
+    marginBottom: spacing.xl,
   },
   progressSegment: {
     flex: 1,
-    height: 4,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 2,
+    height: 5,
+    backgroundColor: colors.borderLight,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressSegmentComplete: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
   },
   progressSegmentActive: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: colors.borderLight,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.primary,
   },
   stretchContainer: {
     flex: 1,
@@ -425,95 +440,150 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stretchEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 56,
+    marginBottom: spacing.md,
   },
   stretchName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
+    ...typography.title1,
+    color: colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   stretchMuscles: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
   },
-  timerContainer: {
-    marginBottom: 24,
+  timerOuter: {
+    width: width * 0.62,
+    height: width * 0.62,
+    borderRadius: width * 0.31,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  timerGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: width * 0.31,
+    padding: 3,
+  },
+  timerInner: {
+    flex: 1,
+    borderRadius: width * 0.31,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
   },
   timer: {
-    fontSize: 72,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
+    ...typography.largeTitle,
+    fontSize: 64,
+    color: colors.text,
     fontVariant: ['tabular-nums'],
   },
+  timerLabel: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  timerActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  timerAction: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  timerActionText: {
+    ...typography.caption1,
+    color: colors.text,
+  },
+  coachCard: {
+    width: '100%',
+    marginTop: spacing.md,
+  },
+  coachTitle: {
+    ...typography.caption1,
+    color: colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
   instructions: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 32,
     lineHeight: 22,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingBottom: 32,
+    justifyContent: 'space-between',
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
   },
   mainButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 16,
+    minWidth: 140,
   },
-  pauseButton: {
-    backgroundColor: '#FF9800',
+  secondaryPill: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  mainButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+  secondaryPillText: {
+    ...typography.footnote,
+    color: colors.text,
   },
-  secondaryButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+  controlSpacer: {
+    width: 78,
   },
-  secondaryButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  // Prompt styles
   promptEmoji: {
-    fontSize: 64,
-    marginBottom: 24,
+    fontSize: 56,
+    marginBottom: spacing.lg,
   },
   promptTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 8,
+    ...typography.title2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
   },
   promptSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
   },
   promptButtons: {
     flexDirection: 'row',
-    gap: 16,
+    gap: spacing.md,
   },
   promptButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+  },
+  promptButtonTight: {
+    backgroundColor: colors.error,
+  },
+  promptButtonModerate: {
+    backgroundColor: colors.warning,
+  },
+  promptButtonGood: {
+    backgroundColor: colors.success,
   },
   promptButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    ...typography.subhead,
+    color: colors.textInverse,
     fontWeight: '600',
   },
 });

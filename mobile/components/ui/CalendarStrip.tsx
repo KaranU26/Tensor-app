@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   dayNameSelected: {
-    color: colors.text,
+    color: colors.accent,
     fontWeight: '600',
   },
   dateCircle: {
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   dateCircleToday: {
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   dateNumber: {
     ...typography.headline,

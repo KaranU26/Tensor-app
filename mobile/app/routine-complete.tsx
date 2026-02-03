@@ -1,6 +1,8 @@
-import { StyleSheet, View, Text, Pressable } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useColorScheme } from '@/components/useColorScheme';
+import { Button, Card } from '@/components/ui';
+import { colors, gradients, typography, spacing, borderRadius } from '@/config/theme';
 
 export default function RoutineCompleteScreen() {
   const { routineName, duration, stretchCount } = useLocalSearchParams<{
@@ -8,8 +10,6 @@ export default function RoutineCompleteScreen() {
     duration: string;
     stretchCount: string;
   }>();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -21,27 +21,25 @@ export default function RoutineCompleteScreen() {
   };
 
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
+    <LinearGradient colors={gradients.background} style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.emoji}>🎉</Text>
-        <Text style={[styles.title, isDark && styles.textLight]}>Great Work!</Text>
-        <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-          You completed {routineName}
-        </Text>
+        <Text style={styles.title}>Great Work!</Text>
+        <Text style={styles.subtitle}>You completed {routineName}</Text>
 
-        <View style={styles.statsContainer}>
+        <Card style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, isDark && styles.textLight]}>
+            <Text style={styles.statValue}>
               {formatDuration(parseInt(duration || '0'))}
             </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>Duration</Text>
+            <Text style={styles.statLabel}>Duration</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, isDark && styles.textLight]}>{stretchCount}</Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>Stretches</Text>
+            <Text style={styles.statValue}>{stretchCount}</Text>
+            <Text style={styles.statLabel}>Stretches</Text>
           </View>
-        </View>
+        </Card>
 
         <View style={styles.streakCard}>
           <Text style={styles.streakEmoji}>🔥</Text>
@@ -50,37 +48,29 @@ export default function RoutineCompleteScreen() {
       </View>
 
       <View style={styles.buttons}>
-        <Pressable
-          style={styles.primaryButton}
+        <Button
+          title="Done"
           onPress={() => router.replace('/(tabs)/stretching')}
-        >
-          <Text style={styles.primaryButtonText}>Done</Text>
-        </Pressable>
-        <Pressable
-          style={styles.secondaryButton}
+          size="lg"
+          fullWidth
+        />
+        <Button
+          title="View Progress"
           onPress={() => router.replace('/(tabs)/progress')}
-        >
-          <Text style={styles.secondaryButtonText}>View Progress</Text>
-        </Pressable>
+          variant="secondary"
+          size="lg"
+          fullWidth
+          style={{ marginTop: spacing.md }}
+        />
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-  },
-  containerDark: {
-    backgroundColor: '#0d0d1a',
-  },
-  textLight: {
-    color: '#ffffff',
-  },
-  subtitleDark: {
-    color: '#888',
+    padding: spacing.lg,
   },
   content: {
     flex: 1,
@@ -88,92 +78,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 80,
-    marginBottom: 24,
+    fontSize: 72,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 8,
+    ...typography.title1,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 32,
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
   },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    width: '100%',
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 4,
+    ...typography.title2,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption1,
+    color: colors.textSecondary,
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#e0e0e0',
-    marginHorizontal: 16,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
   },
   streakCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    backgroundColor: colors.primary + '14',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
   },
   streakEmoji: {
-    fontSize: 24,
-    marginRight: 8,
+    fontSize: 20,
+    marginRight: spacing.sm,
   },
   streakText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#E65100',
+    ...typography.subhead,
+    color: colors.accent,
   },
   buttons: {
-    paddingBottom: 32,
-  },
-  primaryButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '500',
+    paddingBottom: spacing.xl,
   },
 });

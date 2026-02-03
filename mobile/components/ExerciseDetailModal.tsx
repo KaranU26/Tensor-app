@@ -24,8 +24,9 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Exercise, BODY_PART_EMOJIS, EQUIPMENT_ICONS, MUSCLE_GROUP_COLORS } from '@/types/exercise';
 import { fetchExerciseById } from '@/lib/api/exercises';
-import { colors, spacing, typography, shadows } from '@/config/theme';
+import { colors, spacing, typography } from '@/config/theme';
 import { playHaptic } from '@/lib/sounds';
+import { ErrorBanner } from '@/components/ui';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -108,11 +109,12 @@ export default function ExerciseDetailModal({
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorEmoji}>😔</Text>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadExercise}>
-                <Text style={styles.retryText}>Try Again</Text>
-              </TouchableOpacity>
+              <ErrorBanner
+                title="Couldn't load exercise"
+                message={error}
+                actionLabel="Retry"
+                onAction={loadExercise}
+              />
             </View>
           ) : exercise ? (
             <ScrollView 
@@ -239,17 +241,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: SCREEN_HEIGHT * 0.9,
     minHeight: SCREEN_HEIGHT * 0.5,
     paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderLight,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: spacing.sm,
@@ -263,6 +267,8 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -290,26 +296,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: spacing.xxxl,
-  },
-  errorEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  retryButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-  },
-  retryText: {
-    ...typography.body,
-    color: colors.textInverse,
-    fontWeight: '600',
+    width: '100%',
   },
   gifContainer: {
     width: '100%',
@@ -320,6 +307,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: spacing.lg,
     alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   gif: {
     width: '100%',
@@ -347,6 +336,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 16,
     padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   infoItem: {
     flex: 1,

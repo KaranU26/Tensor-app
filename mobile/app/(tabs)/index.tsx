@@ -4,6 +4,7 @@ import {
   ScrollView, 
   View, 
   Text, 
+  Pressable,
   StatusBar,
   RefreshControl,
 } from 'react-native';
@@ -18,9 +19,10 @@ import { router } from 'expo-router';
 import { Href } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { API_URL } from '@/config/api';
-import { colors, typography, spacing } from '@/config/theme';
+import { colors, typography, spacing, borderRadius } from '@/config/theme';
 import { CalendarStrip, SessionCard, CategoryCard, Card } from '@/components/ui';
 import { AnimatedCard, Skeleton } from '@/components/AnimatedComponents';
+import { RecoveryCard } from '@/components/RecoveryCard';
 
 interface Routine {
   id: string;
@@ -91,7 +93,10 @@ export default function HomeScreen() {
           entering={FadeInDown.delay(100).duration(300)}
           style={styles.header}
         >
-          <Text style={styles.title}>My Training Plan</Text>
+          <View>
+            <Text style={styles.title}>Today</Text>
+            <Text style={styles.subtitle}>{greeting()}</Text>
+          </View>
           <View style={styles.profileButton}>
             <Text style={styles.profileEmoji}>👤</Text>
           </View>
@@ -103,6 +108,21 @@ export default function HomeScreen() {
             selectedDate={selectedDate}
             onDateSelect={setSelectedDate}
           />
+        </Animated.View>
+
+        {/* Daily Focus */}
+        <Animated.View
+          entering={FadeInUp.delay(250).duration(300)}
+          style={styles.section}
+        >
+          <Card style={styles.focusCard}>
+            <View style={styles.focusHeader}>
+              <Text style={styles.focusLabel}>Today's Focus</Text>
+              <Text style={styles.focusBadge}>Hybrid</Text>
+            </View>
+            <Text style={styles.focusTitle}>Strength + Mobility</Text>
+            <Text style={styles.focusSubtitle}>45 min strength • 10 min stretch</Text>
+          </Card>
         </Animated.View>
 
         {/* Today's Session - Fade in with delay */}
@@ -177,10 +197,41 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
+        {/* Quick Actions */}
+        <Animated.View
+          entering={FadeInUp.delay(500).duration(300)}
+          style={styles.section}
+        >
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickRow}>
+            <Pressable style={styles.quickCard} onPress={() => router.push('/(tabs)/workouts' as Href)}>
+              <Text style={styles.quickEmoji}>⚡</Text>
+              <Text style={styles.quickLabel}>Quick Log</Text>
+            </Pressable>
+            <Pressable style={styles.quickCard} onPress={() => router.push('/(tabs)/stretching' as Href)}>
+              <Text style={styles.quickEmoji}>🧘</Text>
+              <Text style={styles.quickLabel}>Quick Stretch</Text>
+            </Pressable>
+            <Pressable style={styles.quickCard} onPress={() => router.push('/recovery' as Href)}>
+              <Text style={styles.quickEmoji}>🧊</Text>
+              <Text style={styles.quickLabel}>Recovery</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+
+        {/* Recovery Summary */}
+        <Animated.View
+          entering={FadeInUp.delay(600).duration(300)}
+          style={styles.section}
+        >
+          <Text style={styles.sectionTitle}>Recovery</Text>
+          <RecoveryCard />
+        </Animated.View>
+
         {/* Quick Stats - Staggered cards */}
         {isAuthenticated && (
           <Animated.View 
-            entering={FadeInUp.delay(550).duration(300)}
+            entering={FadeInUp.delay(650).duration(300)}
             style={styles.section}
           >
             <Text style={styles.sectionTitle}>This Week</Text>
@@ -231,11 +282,18 @@ const styles = StyleSheet.create({
     ...typography.title1,
     color: colors.text,
   },
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   profileButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -256,6 +314,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     gap: spacing.lg,
   },
+  focusCard: {
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+  },
+  focusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  focusLabel: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  focusBadge: {
+    ...typography.caption2,
+    color: colors.accent,
+    backgroundColor: colors.accent + '12',
+    borderWidth: 1,
+    borderColor: colors.accent + '33',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  focusTitle: {
+    ...typography.title2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  focusSubtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+  quickRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  quickCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  quickEmoji: {
+    fontSize: 20,
+    marginBottom: spacing.xs,
+  },
+  quickLabel: {
+    ...typography.caption1,
+    color: colors.text,
+  },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -265,6 +380,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.lg,
+    backgroundColor: colors.surface,
   },
   statIcon: {
     fontSize: 24,
@@ -297,6 +413,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     backgroundColor: colors.surfaceElevated,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   bottomSpacer: {
     height: 100,

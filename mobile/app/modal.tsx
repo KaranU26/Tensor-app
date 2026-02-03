@@ -1,35 +1,62 @@
+import { StyleSheet, View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, StyleSheet } from 'react-native';
-
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Card, Button } from '@/components/ui';
+import { colors, typography, spacing } from '@/config/theme';
 
 export default function ModalScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Modal</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/modal.tsx" />
-
-      {/* Use a light status bar on iOS to account for the black space above the modal */}
-      <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
-    </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+      <View style={styles.content}>
+        <Card style={styles.card}>
+          <Text style={styles.title}>Coming Soon</Text>
+          <Text style={styles.subtitle}>
+            We’re polishing this feature. It’ll land shortly.
+          </Text>
+          <Button
+            title="Go Back"
+            onPress={() => router.back()}
+            variant="secondary"
+            fullWidth
+            style={styles.button}
+          />
+        </Card>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 360,
+    padding: spacing.lg,
+    alignItems: 'center',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.title2,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  button: {
+    marginTop: spacing.sm,
   },
 });

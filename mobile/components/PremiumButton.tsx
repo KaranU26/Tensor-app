@@ -21,7 +21,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, typography, borderRadius, spacing } from '@/config/theme';
+import { colors, typography, borderRadius, spacing, gradients, shadows } from '@/config/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -118,14 +118,15 @@ export function PremiumButton({
           animatedStyle,
           fullWidth && styles.fullWidth,
           (disabled || loading) && styles.disabled,
+          styles.glow,
           style,
         ]}
       >
         <LinearGradient
-          colors={['#FF6B6B', '#FF8E53']}
+          colors={gradients.primary}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.button, sizeStyles.button, styles.gradient]}
+          end={{ x: 1, y: 1 }}
+          style={[styles.button, sizeStyles.button]}
         >
           {renderContent()}
         </LinearGradient>
@@ -197,6 +198,8 @@ const VARIANT_STYLES = {
   secondary: {
     button: {
       backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
     },
     text: {
       color: colors.text,
@@ -205,11 +208,11 @@ const VARIANT_STYLES = {
   outline: {
     button: {
       backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: colors.primary,
+      borderWidth: 1,
+      borderColor: colors.accent,
     },
     text: {
-      color: colors.primary,
+      color: colors.accent,
     },
   },
   ghost: {
@@ -217,7 +220,7 @@ const VARIANT_STYLES = {
       backgroundColor: 'transparent',
     },
     text: {
-      color: colors.primary,
+      color: colors.accent,
     },
   },
   danger: {
@@ -236,9 +239,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  gradient: {
-    borderRadius: borderRadius.lg,
-  },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   text: {
-    fontWeight: '600',
+    ...typography.headline,
   },
   loadingText: {
     fontSize: 20,
@@ -260,6 +260,9 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
+  },
+  glow: {
+    ...shadows.glow,
   },
 });
 

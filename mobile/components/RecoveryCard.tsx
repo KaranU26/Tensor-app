@@ -8,7 +8,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRecovery } from '@/hooks/useRecovery';
-import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, typography, spacing, borderRadius, shadows, gradients } from '@/config/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface RecoveryCardProps {
   onPress?: () => void;
@@ -58,12 +59,19 @@ export function RecoveryCard({ onPress }: RecoveryCardProps) {
 
         {/* Readiness Ring */}
         <View style={styles.readinessSection}>
-          <View style={[styles.ring, { borderColor: getReadinessColor() }]}>
-            <Text style={[styles.score, { color: getReadinessColor() }]}>
-              {readinessScore}%
-            </Text>
-            <Text style={styles.scoreLabel}>Ready</Text>
-          </View>
+          <LinearGradient
+            colors={gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.ring}
+          >
+            <View style={styles.ringInner}>
+              <Text style={[styles.score, { color: getReadinessColor() }]}>
+                {readinessScore}%
+              </Text>
+              <Text style={styles.scoreLabel}>Ready</Text>
+            </View>
+          </LinearGradient>
 
           <View style={styles.details}>
             <Text style={styles.recommendation}>{recommendation}</Text>
@@ -107,11 +115,13 @@ export function RecoveryCard({ onPress }: RecoveryCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     ...shadows.sm,
   },
   loadingPlaceholder: {
@@ -140,10 +150,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 4,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringInner: {
+    flex: 1,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   score: {
     ...typography.title2,

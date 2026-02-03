@@ -135,16 +135,16 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '45%',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   cardSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: `${colors.primary}12`,
   },
   emoji: {
     fontSize: 32,

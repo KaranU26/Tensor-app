@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { StyleSheet, View, Text, ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -16,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PremiumButton } from './PremiumButton';
 import { getEmptyStateMessage, EmptyStateType } from '@/lib/errorMessages';
-import { colors, spacing, typography } from '@/config/theme';
+import { colors, spacing, typography, gradients } from '@/config/theme';
 
 interface EmptyStateProps {
   type: EmptyStateType;
@@ -24,6 +25,7 @@ interface EmptyStateProps {
   customTitle?: string;
   customMessage?: string;
   customEmoji?: string;
+  customActionLabel?: string;
   style?: ViewStyle;
 }
 
@@ -33,6 +35,7 @@ export function EmptyState({
   customTitle,
   customMessage,
   customEmoji,
+  customActionLabel,
   style,
 }: EmptyStateProps) {
   const emptyState = getEmptyStateMessage(type);
@@ -40,7 +43,7 @@ export function EmptyState({
   const title = customTitle || emptyState.title;
   const message = customMessage || emptyState.message;
   const emoji = customEmoji || emptyState.emoji;
-  const action = emptyState.action;
+  const action = customActionLabel || emptyState.action;
 
   // Floating animation for emoji
   const float = useSharedValue(0);
@@ -66,7 +69,16 @@ export function EmptyState({
         entering={FadeIn.delay(100).duration(250)}
         style={[styles.emojiContainer, emojiStyle]}
       >
-        <Text style={styles.emoji}>{emoji}</Text>
+        <LinearGradient
+          colors={gradients.primary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.emojiRing}
+        >
+          <View style={styles.emojiInner}>
+            <Text style={styles.emoji}>{emoji}</Text>
+          </View>
+        </LinearGradient>
       </Animated.View>
       
       <Animated.Text
@@ -106,8 +118,26 @@ const styles = StyleSheet.create({
   emojiContainer: {
     marginBottom: spacing.lg,
   },
+  emojiRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
+  },
+  emojiInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 48,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emoji: {
-    fontSize: 64,
+    fontSize: 44,
   },
   title: {
     ...typography.title2,

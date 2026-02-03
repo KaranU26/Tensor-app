@@ -83,7 +83,7 @@ export function MiniLineChart({
         cx={lastX}
         cy={lastY}
         r={3}
-        fill={colors.background}
+        fill={colors.surface}
         stroke={color}
         strokeWidth={2}
       />
@@ -123,8 +123,8 @@ export function SleepBar({
             height={height}
             rx={2}
             fill={isFilled 
-              ? (isDeepSleep ? colors.chartBlue : colors.primary)
-              : colors.border
+              ? (isDeepSleep ? colors.accent : colors.primary)
+              : colors.borderLight
             }
           />
         );

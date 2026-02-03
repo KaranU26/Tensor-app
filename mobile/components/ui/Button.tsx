@@ -7,12 +7,13 @@ import {
   TextStyle,
   ActivityIndicator 
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring 
 } from 'react-native-reanimated';
-import { colors, borderRadius, typography, spacing } from '@/config/theme';
+import { colors, gradients, borderRadius, typography, spacing, shadows } from '@/config/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -73,6 +74,14 @@ export function Button({
         style,
       ]}
     >
+      {variant === 'primary' && (
+        <LinearGradient
+          colors={gradients.primary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        />
+      )}
       {loading ? (
         <ActivityIndicator 
           color={variant === 'primary' ? colors.textInverse : colors.primary} 
@@ -100,9 +109,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.xl,
+    overflow: 'hidden',
   },
   primary: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'transparent',
+    ...shadows.glow,
   },
   secondary: {
     backgroundColor: colors.surface,
@@ -132,6 +143,9 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
+  },
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   text: {
     ...typography.headline,

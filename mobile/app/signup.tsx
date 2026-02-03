@@ -8,76 +8,128 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, router } from 'expo-router';
-import { useColorScheme } from '@/components/useColorScheme';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
+import { colors, typography, spacing, borderRadius, gradients, shadows } from '@/config/theme';
+import { ErrorBanner } from '@/components/ui';
 
 export default function SignupScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const register = useAuthStore((state) => state.register);
 
+  const validateEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
+
+  const passwordStrength = () => {
+    if (!password) return 'Enter a password';
+    if (password.length < 8) return 'Too short';
+    if (password.length < 12) return 'Good';
+    return 'Strong';
+  };
+
   const handleSignup = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email');
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters');
+      setError('Password must be at least 8 characters');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
 
     setIsLoading(true);
+    setError('');
     try {
       await register(email.trim(), password, username.trim() || undefined);
-      router.replace('/(tabs)');
+      const hasOnboarded = await AsyncStorage.getItem('hasOnboarded');
+      if (!hasOnboarded) {
+        router.replace('/onboarding/setup-wizard');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (error: any) {
-      Alert.alert('Signup Failed', error.message || 'Please try again');
+      setError(error.message || 'Signup failed. Please try again');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSocial = (provider: 'Apple' | 'Google') => {
+    setError(`${provider} sign-up is coming soon.`);
+  };
+
   return (
     <KeyboardAvoidingView
-      style={[styles.container, isDark && styles.containerDark]}
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🧘‍♂️</Text>
-            <Text style={[styles.title, isDark && styles.textLight]}>Create Account</Text>
-            <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
+            <LinearGradient
+              colors={gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoRing}
+            >
+              <Text style={styles.logo}>🧘‍♂️</Text>
+            </LinearGradient>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>
               Start your fitness journey today
             </Text>
+          </View>
+
+          {error ? (
+            <ErrorBanner
+              title="Couldn't sign up"
+              message={error}
+              actionLabel="Dismiss"
+              onAction={() => setError('')}
+              style={styles.errorBanner}
+            />
+          ) : null}
+
+          <View style={styles.socialRow}>
+            <Pressable style={styles.socialButton} onPress={() => handleSocial('Apple')}>
+              <Text style={styles.socialIcon}></Text>
+              <Text style={styles.socialText}>Apple</Text>
+            </Pressable>
+            <Pressable style={styles.socialButton} onPress={() => handleSocial('Google')}>
+              <Text style={styles.socialIcon}>G</Text>
+              <Text style={styles.socialText}>Google</Text>
+            </Pressable>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, isDark && styles.textLight]}>Email *</Text>
+              <Text style={styles.label}>Email *</Text>
               <TextInput
-                style={[styles.input, isDark && styles.inputDark]}
+                style={styles.input}
                 placeholder="you@example.com"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textTertiary}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -87,11 +139,11 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, isDark && styles.textLight]}>Username (optional)</Text>
+              <Text style={styles.label}>Username (optional)</Text>
               <TextInput
-                style={[styles.input, isDark && styles.inputDark]}
+                style={styles.input}
                 placeholder="fitnessuser"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textTertiary}
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
@@ -100,24 +152,25 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, isDark && styles.textLight]}>Password *</Text>
+              <Text style={styles.label}>Password *</Text>
               <TextInput
-                style={[styles.input, isDark && styles.inputDark]}
+                style={styles.input}
                 placeholder="At least 8 characters"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textTertiary}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
                 autoComplete="new-password"
               />
+              <Text style={styles.helperText}>{passwordStrength()}</Text>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, isDark && styles.textLight]}>Confirm Password *</Text>
+              <Text style={styles.label}>Confirm Password *</Text>
               <TextInput
-                style={[styles.input, isDark && styles.inputDark]}
+                style={styles.input}
                 placeholder="••••••••"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
@@ -130,8 +183,14 @@ export default function SignupScreen() {
               onPress={handleSignup}
               disabled={isLoading}
             >
+              <LinearGradient
+                colors={gradients.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.buttonGradient}
+              />
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.textInverse} />
               ) : (
                 <Text style={styles.buttonText}>Create Account</Text>
               )}
@@ -140,7 +199,7 @@ export default function SignupScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={[styles.footerText, isDark && styles.subtitleDark]}>
+            <Text style={styles.footerText}>
               Already have an account?{' '}
             </Text>
             <Link href="/login" asChild>
@@ -151,7 +210,7 @@ export default function SignupScreen() {
           </View>
 
           {/* Terms */}
-          <Text style={[styles.terms, isDark && styles.subtitleDark]}>
+          <Text style={styles.terms}>
             By creating an account, you agree to our Terms of Service and Privacy Policy
           </Text>
         </View>
@@ -163,17 +222,14 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  containerDark: {
-    backgroundColor: '#0d0d1a',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: spacing.xl,
     justifyContent: 'center',
   },
   header: {
@@ -181,25 +237,53 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logo: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 40,
+  },
+  logoRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 8,
+    ...typography.title1,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
-  textLight: {
-    color: '#ffffff',
+  errorBanner: {
+    marginBottom: spacing.md,
   },
-  subtitleDark: {
-    color: '#888',
+  socialRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  socialIcon: {
+    fontSize: 16,
+    marginRight: spacing.sm,
+    color: colors.text,
+  },
+  socialText: {
+    ...typography.subhead,
+    color: colors.text,
   },
   form: {
     marginBottom: 24,
@@ -208,39 +292,41 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1a1a2e',
-    marginBottom: 8,
+    ...typography.caption1,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    ...typography.body,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    color: '#1a1a2e',
+    borderColor: colors.borderLight,
+    color: colors.text,
   },
-  inputDark: {
-    backgroundColor: '#1a1a2e',
-    borderColor: '#2a2a4e',
-    color: '#ffffff',
+  helperText: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    marginTop: spacing.xs,
   },
   button: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: spacing.md,
+    overflow: 'hidden',
+    ...shadows.glow,
+  },
+  buttonGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    ...typography.headline,
+    color: colors.textInverse,
   },
   footer: {
     flexDirection: 'row',
@@ -248,17 +334,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   footerText: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.textSecondary,
   },
   link: {
-    fontSize: 16,
-    color: '#4CAF50',
+    ...typography.subhead,
+    color: colors.accent,
     fontWeight: '600',
   },
   terms: {
-    fontSize: 12,
-    color: '#888',
+    ...typography.caption2,
+    color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 18,
   },
