@@ -146,10 +146,34 @@ router.get('/workouts/:id', requireAuth, async (req: AuthRequest, res: Response,
 router.patch('/workouts/:id', requireAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { notes, finish } = req.body;
-    
+
     const updateData: any = {};
     if (notes !== undefined) updateData.notes = notes;
-    if (finish) updateData.completedAt = new Date();
+
+    if (finish) {
+      const now = new Date();
+      updateData.completedAt = now;
+
+      // Compute derived fields
+      const existing = await prisma.strengthWorkout.findUnique({
+        where: { id: req.params.id },
+        include: { exercises: { include: { sets: true } } },
+      });
+
+      if (existing) {
+        // Duration in seconds
+        updateData.durationSeconds = Math.round((now.getTime() - existing.startedAt.getTime()) / 1000);
+
+        // Total volume = sum of (weight * reps) per set
+        let volume = 0;
+        for (const ex of existing.exercises) {
+          for (const set of ex.sets) {
+            volume += (set.weight || 0) * (set.reps || 0);
+          }
+        }
+        updateData.totalVolume = volume;
+      }
+    }
 
     const workout = await prisma.strengthWorkout.update({
       where: { id: req.params.id },
@@ -294,6 +318,95 @@ router.delete('/sets/:id', requireAuth, async (req: AuthRequest, res: Response, 
 // STATS
 // =============================================================================
 
+// GET /dashboard - Combined stats for Home + Profile screens
+router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.userId!;
+
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+
+    // All-time completed workouts
+    const totalWorkouts = await prisma.strengthWorkout.count({
+      where: { userId, completedAt: { not: null } },
+    });
+
+    // This week's workouts with duration
+    const weekWorkoutsData = await prisma.strengthWorkout.findMany({
+      where: { userId, completedAt: { gte: weekStart } },
+      select: { durationSeconds: true, totalVolume: true },
+    });
+    const weekWorkouts = weekWorkoutsData.length;
+    const weekDurationMinutes = Math.round(
+      weekWorkoutsData.reduce((sum, w) => sum + (w.durationSeconds || 0), 0) / 60
+    );
+    const weekVolume = weekWorkoutsData.reduce((sum, w) => sum + (w.totalVolume || 0), 0);
+
+    // Estimate calories (moderate strength training MET ~5.0, 80kg average)
+    const weekCalories = Math.round(weekDurationMinutes * 5.0 * 80 / 60);
+
+    // Personal records count
+    const personalRecords = await prisma.personalRecord.count({
+      where: { userId },
+    });
+
+    // Streak: consecutive days with a workout or stretching session
+    const allWorkoutDates = await prisma.strengthWorkout.findMany({
+      where: { userId, completedAt: { not: null } },
+      select: { completedAt: true },
+      orderBy: { completedAt: 'desc' },
+    });
+    const allSessionDates = await prisma.stretchingSession.findMany({
+      where: { userId, completed: true },
+      select: { completedAt: true },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    const activityDates = new Set<string>();
+    for (const w of allWorkoutDates) {
+      if (w.completedAt) activityDates.add(w.completedAt.toISOString().split('T')[0]);
+    }
+    for (const s of allSessionDates) {
+      if (s.completedAt) activityDates.add(s.completedAt.toISOString().split('T')[0]);
+    }
+
+    let currentStreak = 0;
+    const today = new Date();
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      if (activityDates.has(dateStr)) {
+        currentStreak++;
+      } else if (i === 0) {
+        // Allow skipping today if no activity yet
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    // Total stretching sessions this week
+    const weekStretchingSessions = await prisma.stretchingSession.count({
+      where: { userId, completed: true, completedAt: { gte: weekStart } },
+    });
+
+    res.json({
+      totalWorkouts,
+      weekWorkouts,
+      weekDurationMinutes,
+      weekVolume,
+      weekCalories,
+      weekStretchingSessions,
+      personalRecords,
+      currentStreak,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /stats - Get strength training stats
 router.get('/stats', requireAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -316,18 +429,27 @@ router.get('/stats', requireAuth, async (req: AuthRequest, res: Response, next: 
       },
     });
 
-    // Total volume (sum of weight * reps)
-    const volumeResult = await prisma.workoutSet.aggregate({
+    // Total volume (sum of weight * reps per set)
+    const allSets = await prisma.workoutSet.findMany({
       where: {
         workoutExercise: {
-          workout: { userId },
+          workout: { userId, completedAt: { not: null } },
         },
       },
-      _sum: {
-        weight: true,
-        reps: true,
-      },
+      select: { weight: true, reps: true },
     });
+    const totalVolume = allSets.reduce((sum, s) => sum + (s.weight || 0) * (s.reps || 0), 0);
+
+    // Week volume
+    const weekSets = await prisma.workoutSet.findMany({
+      where: {
+        workoutExercise: {
+          workout: { userId, completedAt: { gte: weekStart } },
+        },
+      },
+      select: { weight: true, reps: true },
+    });
+    const weekVolume = weekSets.reduce((sum, s) => sum + (s.weight || 0) * (s.reps || 0), 0);
 
     // Personal records count
     const prCount = await prisma.personalRecord.count({
@@ -337,7 +459,8 @@ router.get('/stats', requireAuth, async (req: AuthRequest, res: Response, next: 
     res.json({
       totalWorkouts,
       weekWorkouts,
-      estimatedTotalVolume: (volumeResult._sum.weight || 0) * (volumeResult._sum.reps || 0),
+      totalVolume,
+      weekVolume,
       personalRecords: prCount,
     });
   } catch (error) {

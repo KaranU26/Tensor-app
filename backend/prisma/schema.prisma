@@ -19,8 +19,9 @@ model User {
   email        String   @unique
   username     String?  @unique
   passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  expoPushToken  String?  @map("expo_push_token")
 
   // Relations
   onboarding           UserOnboarding?
@@ -278,6 +279,7 @@ model Exercise {
 
   workoutExercises WorkoutExercise[]
   personalRecords  PersonalRecord[]
+  routineExercises RoutineExercise[]
 
   @@index([bodyPart])
   @@index([target])
@@ -358,6 +360,59 @@ model PersonalRecord {
 
   @@unique([userId, exerciseId, recordType])
   @@map("personal_records")
+}
+
+// ============================================
+// WORKOUT ROUTINES (Premade & User-Created)
+// ============================================
+
+model Routine {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  category        String   // gym, home, travel, dumbbell, resistance_bands, cardio, bodyweight, trx, recovery
+  durationMinutes Int      @map("duration_minutes")
+  difficulty      String   @default("beginner") // beginner, intermediate, advanced
+  equipment       String?  // JSON array of required equipment
+  isPremade       Boolean  @default(false) @map("is_premade")
+  userId          String?  @map("user_id") // null for premade routines
+  imageUrl        String?  @map("image_url")
+  
+  // Workout structure
+  warmup          String?  // JSON array of warmup instructions
+  cooldown        String?  // JSON array of cooldown/stretching instructions
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  exercises       RoutineExercise[]
+
+  @@index([category])
+  @@index([isPremade])
+  @@map("routines")
+}
+
+model RoutineExercise {
+  id            String  @id @default(uuid())
+  routineId     String  @map("routine_id")
+  exerciseId    String? @map("exercise_id") // null for custom/text exercises
+  positionOrder Int     @map("position_order")
+  
+  // For exercises not in our database (custom text)
+  customName    String? @map("custom_name")
+  
+  // Set prescription
+  sets          Int     @default(3)
+  reps          String? // Can be "8-12", "10", "AMRAP", etc.
+  restSeconds   Int?    @map("rest_seconds")
+  notes         String?
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  routine       Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercise      Exercise? @relation(fields: [exerciseId], references: [id])
+
+  @@map("routine_exercises")
 }
 
 // ============================================

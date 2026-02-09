@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT,
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   gradientBg: {
     ...StyleSheet.absoluteFillObject,
@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: colors.primary,
-    opacity: 0.3,
+    backgroundColor: colors.accent,
+    opacity: 0.25,
   },
   gradientBottom: {
     position: 'absolute',
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,

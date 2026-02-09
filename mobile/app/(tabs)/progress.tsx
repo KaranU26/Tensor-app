@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { 
-  StyleSheet, 
-  ScrollView, 
-  View, 
-  Text, 
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import {
+  StyleSheet,
+  ScrollView,
+  View,
+  Text,
   Pressable,
   StatusBar,
   RefreshControl,
@@ -11,52 +11,67 @@ import {
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
- 
+
 import { colors, typography, spacing, borderRadius } from '@/config/theme';
 import { Card } from '@/components/ui';
 import { AnimatedCounter } from '@/components/AnimatedComponents';
-import { MiniBarChart, MiniLineChart, SleepBar } from '@/components/ui/MiniCharts';
+// MiniBarChart, MiniLineChart, SleepBar will be used when HealthConnect is wired up
 import { LinearGradient } from 'expo-linear-gradient';
 import MuscleHeatmap from '@/components/MuscleHeatmap';
-import { ComparisonChart, MuscleDistributionChart, ProgressLineChart } from '@/components/charts';
+import { MuscleDistributionChart, ProgressLineChart } from '@/components/charts';
 import { useGoalsStore } from '@/store/goalsStore';
+import { useAuthStore } from '@/store/authStore';
+import { getDashboardStats, getStrengthStats, getMuscleVolume, type DashboardStats, type StrengthStats, type MuscleVolumeData } from '@/lib/api/strength';
+import { getLatestBodyMetric, getBodyMetrics } from '@/lib/api/body-metrics';
+import useRecovery from '@/hooks/useRecovery';
 
 export default function ProgressScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [range, setRange] = useState<'7D' | '30D' | '90D'>('7D');
   const ranges: Array<'7D' | '30D' | '90D'> = ['7D', '30D', '90D'];
   const userGoals = useGoalsStore((state) => state.goals);
-  
-  // Mock data for statistics
-  const stats = {
-    steps: {
-      total: 10728,
-      weekData: [8500, 12000, 9500, 7800, 11200, 10728, 0],
-    },
-    heartRate: {
-      current: 120,
-      data: [72, 85, 78, 95, 110, 120, 115, 108, 120],
-    },
-    calories: 148,
-    water: 1.8,
-    weight: {
-      current: 172.5,
-      data: [175, 174.5, 174, 173.2, 173, 172.8, 172.5],
-    },
-    sleep: {
-      bedtime: '10:00 pm',
-      wakeup: '05:30 am',
-      hours: 7.5,
-    },
-  };
-  const goalSummary = {
-    name: 'Front Splits',
-    progress: 45,
-    baseline: 60,
-    current: 75,
-    target: 180,
-    nextCheckIn: '3 days',
-  };
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Real data state
+  const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
+  const [strengthData, setStrengthData] = useState<StrengthStats | null>(null);
+  const [muscleData, setMuscleData] = useState<MuscleVolumeData | null>(null);
+  const [latestMetric, setLatestMetric] = useState<any>(null);
+  const [prevMetric, setPrevMetric] = useState<any>(null);
+  const { readinessScore, recommendation, isLoading: recoveryLoading, refresh: refreshRecovery } = useRecovery();
+
+  const rangeDays = range === '7D' ? 7 : range === '30D' ? 30 : 90;
+
+  const loadData = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const [dash, strength, muscle] = await Promise.all([
+        getDashboardStats().catch(() => null),
+        getStrengthStats().catch(() => null),
+        getMuscleVolume(rangeDays).catch(() => null),
+      ]);
+      if (dash) setDashStats(dash);
+      if (strength) setStrengthData(strength);
+      if (muscle) setMuscleData(muscle);
+    } catch {}
+
+    try {
+      const latest = await getLatestBodyMetric();
+      setLatestMetric(latest);
+      const metrics = await getBodyMetrics({ limit: 2 });
+      if (metrics.bodyMetrics?.length >= 2) setPrevMetric(metrics.bodyMetrics[1]);
+    } catch {}
+  }, [isAuthenticated, rangeDays]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshRecovery();
+    loadData().finally(() => setRefreshing(false));
+  }, [loadData, refreshRecovery]);
+
+  // Goal helpers
   const activeGoal = userGoals.find((goal) => goal.status === 'active');
   const formatCheckInLabel = (date?: string) => {
     if (!date) return 'No check‑in yet';
@@ -84,6 +99,7 @@ export default function ProgressScreen() {
     const now = Date.now();
     return goal.checkIns.filter((checkIn) => (now - new Date(checkIn.date).getTime()) / (1000 * 60 * 60 * 24) <= 7).length;
   };
+
   const goalSummaryData = activeGoal
     ? {
         name: activeGoal.title,
@@ -103,53 +119,37 @@ export default function ProgressScreen() {
           )
         ),
       }
-    : goalSummary;
-  const strengthAnalytics = {
-    totalVolume: 487500,
-    changePercent: 12,
-    sessions: 5,
-    avgSession: 97500,
-    distribution: [
-      { muscle: 'Legs', sets: 30, color: colors.primary },
-      { muscle: 'Back', sets: 22, color: colors.accent },
-      { muscle: 'Chest', sets: 18, color: colors.chartOrange },
-      { muscle: 'Shoulders', sets: 15, color: colors.chartPurple },
-      { muscle: 'Arms', sets: 12, color: colors.chartBlue },
-      { muscle: 'Core', sets: 6, color: colors.chartGreen },
-    ],
-    weeklyLoad: {
-      current: [
-        { x: 'Mon', y: 72 },
-        { x: 'Tue', y: 48 },
-        { x: 'Wed', y: 0 },
-        { x: 'Thu', y: 64 },
-        { x: 'Fri', y: 58 },
-        { x: 'Sat', y: 0 },
-        { x: 'Sun', y: 42 },
-      ],
-      previous: [
-        { x: 'Mon', y: 60 },
-        { x: 'Tue', y: 36 },
-        { x: 'Wed', y: 30 },
-        { x: 'Thu', y: 54 },
-        { x: 'Fri', y: 40 },
-        { x: 'Sat', y: 22 },
-        { x: 'Sun', y: 35 },
-      ],
-    },
-  };
+    : { name: 'No active goal', baseline: 0, current: 0, target: 0, nextCheckIn: '—', progress: 0 };
+
+  // Strength analytics from real data
+  const strengthAnalytics = useMemo(() => {
+    const totalVol = strengthData?.weekVolume || 0;
+    const sessions = strengthData?.weekWorkouts || 0;
+    const avgSession = sessions > 0 ? Math.round(totalVol / sessions) : 0;
+
+    // Muscle distribution from real data
+    const MUSCLE_COLORS: Record<string, string> = {
+      chest: colors.chartOrange, back: colors.accent, shoulders: colors.chartPurple,
+      'upper legs': colors.primary, 'lower legs': colors.chartGreen, waist: colors.chartBlue,
+      'upper arms': colors.chartRed, 'lower arms': colors.chartPurple, cardio: colors.chartGreen,
+    };
+    const distribution = muscleData
+      ? Object.entries(muscleData.muscleVolume)
+          .filter(([, v]) => v > 0)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 6)
+          .map(([muscle, sets]) => ({
+            muscle: muscle.charAt(0).toUpperCase() + muscle.slice(1),
+            sets: Math.round(sets),
+            color: MUSCLE_COLORS[muscle] || colors.textSecondary,
+          }))
+      : [];
+
+    return { totalVolume: totalVol, sessions, avgSession, distribution };
+  }, [strengthData, muscleData]);
+
+  // Stretch focus from goals (this was partially real already)
   const stretchFocusCounts = useMemo(() => {
-    if (userGoals.length === 0) {
-      return {
-        hamstrings: 14,
-        hips: 12,
-        glutes: 10,
-        quads: 8,
-        calves: 6,
-        shoulders: 6,
-        upper_back: 5,
-      };
-    }
     const counts: Record<string, number> = {};
     userGoals.forEach((goal) => {
       if (goal.status !== 'active') return;
@@ -167,59 +167,64 @@ export default function ProgressScreen() {
         });
       }
     });
-    return Object.keys(counts).length > 0 ? counts : {
-      hamstrings: 14,
-      hips: 12,
-      glutes: 10,
-      quads: 8,
-      calves: 6,
-      shoulders: 6,
-      upper_back: 5,
-    };
+    return counts;
   }, [userGoals]);
+
   const flexibilityAnalytics = {
     romTrend: activeGoal
-      ? activeGoal.history.map((value, index) => ({
-          x: `W${index + 1}`,
-          y: value,
-        }))
-      : [
-          { x: 'Jan', y: 60 },
-          { x: 'Feb', y: 64 },
-          { x: 'Mar', y: 70 },
-          { x: 'Apr', y: 75 },
-          { x: 'May', y: 78 },
-          { x: 'Jun', y: 82 },
-        ],
+      ? activeGoal.history.map((value, index) => ({ x: `W${index + 1}`, y: value }))
+      : [],
     stretchFocus: stretchFocusCounts,
     consistency: {
       targetPerWeek: 4,
-      completedThisWeek: activeGoal ? getWeeklyCheckIns(activeGoal) : 3,
-      streakDays: activeGoal ? getStreakDays(activeGoal) : 12,
-      lastCheckIn: activeGoal ? formatCheckInLabel(activeGoal.lastCheckInAt) : '8 days ago',
+      completedThisWeek: activeGoal ? getWeeklyCheckIns(activeGoal) : 0,
+      streakDays: activeGoal ? getStreakDays(activeGoal) : (dashStats?.currentStreak || 0),
+      lastCheckIn: activeGoal ? formatCheckInLabel(activeGoal.lastCheckInAt) : '—',
     },
   };
-  const recoveryAnalytics = {
-    readinessAvg: 72,
-    sleepAvg: 7.4,
-    sorenessLevel: 'Moderate',
-    focus: 'Lower body recovery',
-  };
-  const bodyMetricsSummary = {
-    weight: 172.5,
-    bodyFat: 18,
-    changePercent: -2.6,
-  };
-  const rangeLabel = range === '7D' ? 'Last 7 days' : range === '30D' ? 'Last 30 days' : 'Last 90 days';
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+  // Recovery from real hook data
+  const recoveryAnalytics = {
+    readinessAvg: readinessScore,
+    focus: recommendation || 'Complete workouts to see recovery data',
   };
+
+  // Body metrics from real API data
+  const bodyMetricsSummary = useMemo(() => {
+    const weight = latestMetric?.weight || 0;
+    const bodyFat = latestMetric?.bodyFatPercentage || 0;
+    let changePercent = 0;
+    if (latestMetric?.weight && prevMetric?.weight) {
+      changePercent = Math.round(((latestMetric.weight - prevMetric.weight) / prevMetric.weight) * 1000) / 10;
+    }
+    return { weight, bodyFat, changePercent };
+  }, [latestMetric, prevMetric]);
+
+  // Dynamic insights from real data
+  const insights = useMemo(() => {
+    const items: string[] = [];
+    if (dashStats?.currentStreak && dashStats.currentStreak > 1) {
+      items.push(`${dashStats.currentStreak}-day workout streak — keep it going!`);
+    }
+    if (activeGoal && activeGoal.currentRom > activeGoal.baselineRom) {
+      const gain = activeGoal.currentRom - activeGoal.baselineRom;
+      items.push(`ROM up ${gain}° on ${activeGoal.title}.`);
+    }
+    if (muscleData && Object.keys(muscleData.muscleVolume).length > 0) {
+      const sorted = Object.entries(muscleData.muscleVolume).sort(([, a], [, b]) => a - b);
+      if (sorted.length > 0 && sorted[0][1] < 3) {
+        items.push(`Consider adding more ${sorted[0][0]} work to balance your training.`);
+      }
+    }
+    if (items.length === 0) items.push('Complete a workout to see personalized insights.');
+    return items;
+  }, [dashStats, activeGoal, muscleData]);
+
+  const rangeLabel = range === '7D' ? 'Last 7 days' : range === '30D' ? 'Last 30 days' : 'Last 90 days';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       
       <ScrollView bounces={false} 
         style={styles.scrollView}
@@ -311,11 +316,13 @@ export default function ProgressScreen() {
             <View style={styles.cardHeaderRow}>
               <View>
                 <Text style={styles.cardTitle}>Strength Volume</Text>
-                <Text style={styles.cardSubtitle}>Last 30 days</Text>
+                <Text style={styles.cardSubtitle}>{rangeLabel}</Text>
               </View>
-              <View style={styles.changePill}>
-                <Text style={styles.changeText}>+{strengthAnalytics.changePercent}%</Text>
-              </View>
+              {strengthAnalytics.sessions > 0 && (
+                <View style={styles.changePill}>
+                  <Text style={styles.changeText}>{strengthAnalytics.sessions} sessions</Text>
+                </View>
+              )}
             </View>
             <View style={styles.statRow}>
               <View style={styles.statBlock}>
@@ -339,15 +346,6 @@ export default function ProgressScreen() {
           <MuscleDistributionChart
             title="Volume by muscle group"
             data={strengthAnalytics.distribution}
-          />
-        </Animated.View>
-
-        <Animated.View entering={FadeInUp.delay(170).duration(250)}>
-          <ComparisonChart
-            title="Training load vs last week"
-            currentData={strengthAnalytics.weeklyLoad.current}
-            previousData={strengthAnalytics.weeklyLoad.previous}
-            labels={['This Week', 'Last Week']}
           />
         </Animated.View>
 
@@ -416,12 +414,12 @@ export default function ProgressScreen() {
             </View>
             <View style={styles.recoveryRow}>
               <View style={styles.recoveryItem}>
-                <Text style={styles.recoveryValue}>{recoveryAnalytics.sleepAvg}h</Text>
-                <Text style={styles.recoveryLabel}>Avg sleep</Text>
+                <Text style={styles.recoveryValue}>{dashStats?.weekWorkouts || 0}</Text>
+                <Text style={styles.recoveryLabel}>Workouts this week</Text>
               </View>
               <View style={styles.recoveryItem}>
-                <Text style={styles.recoveryValue}>{recoveryAnalytics.sorenessLevel}</Text>
-                <Text style={styles.recoveryLabel}>Soreness</Text>
+                <Text style={styles.recoveryValue}>{dashStats?.currentStreak || 0}d</Text>
+                <Text style={styles.recoveryLabel}>Streak</Text>
               </View>
             </View>
           </Card>
@@ -477,86 +475,135 @@ export default function ProgressScreen() {
         </Animated.View>
 
         <Text style={styles.sectionTitle}>Daily Signals</Text>
-        {/* Steps Card */}
-        <Animated.View entering={FadeInUp.delay(100).duration(250)}>
-          <Card style={styles.statCard}>
-            <View style={styles.statHeader}>
-              <View style={styles.statIcon}>
-                <Text style={styles.iconEmoji}>🏃</Text>
-              </View>
-              <View style={styles.statInfo}>
-                <Text style={styles.statLabel}>Steps</Text>
-                <Text style={styles.statSubLabel}>Last 7 days</Text>
-              </View>
-              <MiniBarChart 
-                data={stats.steps.weekData} 
-                color={colors.primary}
-              />
-            </View>
-            <View style={styles.statValueRow}>
-              <AnimatedCounter value={stats.steps.total} style={styles.bigValue} />
-              <Text style={styles.valueUnit}>Steps</Text>
-              <View style={styles.trendPill}>
-                <Text style={styles.trendText}>+8%</Text>
-              </View>
-            </View>
-            <View style={styles.weekDays}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                <Text key={i} style={styles.dayLabel}>{day}</Text>
-              ))}
-            </View>
-          </Card>
-        </Animated.View>
 
-        {/* Heart Rate & Calories Row */}
+        {/* Workouts & Calories Row (real data) */}
         <View style={styles.row}>
-          <Animated.View entering={FadeInUp.delay(150).duration(250)} style={{ flex: 1 }}>
+          <Animated.View entering={FadeInUp.delay(100).duration(250)} style={{ flex: 1 }}>
             <Card style={styles.halfCard}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardIcon}>❤️</Text>
-                <Text style={styles.cardTitle}>Heart Rate</Text>
+                <Text style={styles.cardIcon}>💪</Text>
+                <Text style={styles.cardTitle}>Workouts</Text>
               </View>
-              <MiniLineChart 
-                data={stats.heartRate.data}
-                color={colors.primary}
-                width={100}
-                height={40}
-              />
-              <View style={styles.cardValueRow}>
-                <AnimatedCounter value={stats.heartRate.current} style={styles.cardValue} />
-                <Text style={styles.cardUnit}>Bpm</Text>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>
+                  {dashStats ? dashStats.weekWorkouts + dashStats.weekStretchingSessions : '—'}
+                </Text>
               </View>
+              <Text style={styles.cardUnit}>This week</Text>
             </Card>
           </Animated.View>
-          
-          <Animated.View entering={FadeInUp.delay(200).duration(250)} style={{ flex: 1 }}>
+
+          <Animated.View entering={FadeInUp.delay(150).duration(250)} style={{ flex: 1 }}>
             <Card style={styles.halfCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>⚡</Text>
                 <Text style={styles.cardTitle}>Calories</Text>
               </View>
               <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
-                <AnimatedCounter value={stats.calories} style={styles.caloriesValue} />
+                <AnimatedCounter value={dashStats?.weekCalories || 0} style={styles.caloriesValue} />
               </View>
-              <Text style={styles.cardUnit}>Kcal</Text>
+              <Text style={styles.cardUnit}>Kcal this week</Text>
             </Card>
           </Animated.View>
         </View>
 
-        {/* Water Card */}
+        {/* Weight Card (real data from body metrics) */}
+        <Animated.View entering={FadeInUp.delay(200).duration(250)}>
+          <Pressable onPress={() => router.push('/body-metrics')}>
+            <Card style={styles.statCard}>
+              <View style={styles.statHeader}>
+                <View style={styles.statIcon}>
+                  <Text style={styles.iconEmoji}>⚖️</Text>
+                </View>
+                <View style={styles.statInfo}>
+                  <Text style={styles.signalLabel}>Weight</Text>
+                  <Text style={styles.statSubLabel}>
+                    {latestMetric ? 'Latest check-in' : 'No data yet'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.weightRow}>
+                <View>
+                  <Text style={styles.bigValue}>
+                    {bodyMetricsSummary.weight || '—'}
+                  </Text>
+                  <Text style={styles.valueUnit}>lb</Text>
+                </View>
+                {bodyMetricsSummary.changePercent !== 0 && (
+                  <View style={styles.trendPill}>
+                    <Text style={styles.trendText}>
+                      {bodyMetricsSummary.changePercent > 0 ? '+' : ''}{bodyMetricsSummary.changePercent}%
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Card>
+          </Pressable>
+        </Animated.View>
+
+        {/* HealthConnect cards — placeholder until integration */}
         <View style={styles.row}>
-          <Card style={styles.halfCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>💧</Text>
-              <Text style={styles.cardTitle}>Water</Text>
-            </View>
-            <View style={styles.waterCircle}>
-              <Text style={styles.waterValue}>{stats.water}</Text>
-            </View>
-            <Text style={styles.cardUnit}>Liters</Text>
-          </Card>
-          
-          <View style={styles.halfCardSpacer} />
+          <Animated.View entering={FadeInUp.delay(250).duration(250)} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>🏃</Text>
+                <Text style={styles.cardTitle}>Steps</Text>
+              </View>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>—</Text>
+              </View>
+              <View style={styles.healthConnectBadge}>
+                <Text style={styles.healthConnectText}>Connect Health</Text>
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(300).duration(250)} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>❤️</Text>
+                <Text style={styles.cardTitle}>Heart Rate</Text>
+              </View>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>—</Text>
+              </View>
+              <View style={styles.healthConnectBadge}>
+                <Text style={styles.healthConnectText}>Connect Health</Text>
+              </View>
+            </Card>
+          </Animated.View>
+        </View>
+
+        <View style={styles.row}>
+          <Animated.View entering={FadeInUp.delay(350).duration(250)} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>💧</Text>
+                <Text style={styles.cardTitle}>Water</Text>
+              </View>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>—</Text>
+              </View>
+              <View style={styles.healthConnectBadge}>
+                <Text style={styles.healthConnectText}>Connect Health</Text>
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(400).duration(250)} style={{ flex: 1 }}>
+            <Card style={styles.halfCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>😴</Text>
+                <Text style={styles.cardTitle}>Sleep</Text>
+              </View>
+              <View style={[styles.caloriesCircle, { marginVertical: spacing.md }]}>
+                <Text style={styles.caloriesValue}>—</Text>
+              </View>
+              <View style={styles.healthConnectBadge}>
+                <Text style={styles.healthConnectText}>Connect Health</Text>
+              </View>
+            </Card>
+          </Animated.View>
         </View>
 
         {/* Insights */}
@@ -567,64 +614,21 @@ export default function ProgressScreen() {
               <Text style={styles.insightPillText}>This week</Text>
             </View>
           </View>
-          <View style={styles.insightRow}>
-            <LinearGradient
-              colors={[colors.primary, colors.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.insightDot}
-            />
-            <Text style={styles.insightText}>Consistency up 12% — keep your 4‑day streak.</Text>
-          </View>
-          <View style={styles.insightRow}>
-            <View style={[styles.insightDot, styles.insightDotAlt]} />
-            <Text style={styles.insightText}>Recovery score trending good after leg days.</Text>
-          </View>
-          <View style={styles.insightRow}>
-            <View style={[styles.insightDot, styles.insightDotAlt2]} />
-            <Text style={styles.insightText}>Try a 10‑min hip routine to boost mobility.</Text>
-          </View>
-        </Card>
-
-        {/* Weight Card */}
-        <Card style={styles.statCard}>
-          <View style={styles.statHeader}>
-            <View style={styles.statIcon}>
-              <Text style={styles.iconEmoji}>⚖️</Text>
+          {insights.map((text, i) => (
+            <View key={i} style={styles.insightRow}>
+              {i === 0 ? (
+                <LinearGradient
+                  colors={[colors.primary, colors.accent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.insightDot}
+                />
+              ) : (
+                <View style={[styles.insightDot, i % 2 === 1 ? styles.insightDotAlt : styles.insightDotAlt2]} />
+              )}
+              <Text style={styles.insightText}>{text}</Text>
             </View>
-            <View style={styles.statInfo}>
-              <Text style={styles.statLabel}>Weight</Text>
-              <Text style={styles.statSubLabel}>Feb 4 - Apr 8</Text>
-            </View>
-          </View>
-          <View style={styles.weightRow}>
-            <View>
-              <Text style={styles.bigValue}>{stats.weight.current}</Text>
-              <Text style={styles.valueUnit}>lb</Text>
-            </View>
-            <MiniLineChart 
-              data={stats.weight.data}
-              color={colors.primary}
-              width={140}
-              height={50}
-            />
-          </View>
-        </Card>
-
-        {/* Sleep Card */}
-        <Card style={styles.statCard}>
-          <View style={styles.statHeader}>
-            <View style={styles.statIcon}>
-              <Text style={styles.iconEmoji}>😴</Text>
-            </View>
-            <View style={styles.statInfo}>
-              <Text style={styles.statLabel}>Sleep</Text>
-              <Text style={styles.statSubLabel}>
-                {stats.sleep.bedtime} - {stats.sleep.wakeup}
-              </Text>
-            </View>
-            <SleepBar sleepHours={stats.sleep.hours} />
-          </View>
+          ))}
         </Card>
 
         <View style={styles.bottomSpacer} />
@@ -1027,7 +1031,7 @@ const styles = StyleSheet.create({
   statInfo: {
     flex: 1,
   },
-  statLabel: {
+  signalLabel: {
     ...typography.headline,
     color: colors.text,
   },
@@ -1087,6 +1091,19 @@ const styles = StyleSheet.create({
   halfCardSpacer: {
     flex: 1,
   },
+  healthConnectBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: colors.textTertiary + '18',
+    borderWidth: 1,
+    borderColor: colors.textTertiary + '33',
+    alignSelf: 'center',
+  },
+  healthConnectText: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1095,10 +1112,6 @@ const styles = StyleSheet.create({
   cardIcon: {
     fontSize: 16,
     marginRight: spacing.xs,
-  },
-  cardTitle: {
-    ...typography.headline,
-    color: colors.text,
   },
   cardValueRow: {
     flexDirection: 'row',

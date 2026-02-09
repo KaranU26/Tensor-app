@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, StatusBar } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, ScrollView, Pressable, StatusBar, ActivityIndicator } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,133 +7,223 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, typography, spacing, borderRadius, gradients, shadows } from '@/config/theme';
 import { Card, Button } from '@/components/ui';
 import { MiniLineChart } from '@/components/ui/MiniCharts';
-
-const metrics = {
-  weight: {
-    current: 185,
-    change: -5,
-    percent: -2.6,
-    data: [192, 190, 189, 188, 186, 185],
-  },
-  bodyFat: {
-    current: 18,
-    change: -1,
-    data: [21, 20, 19.5, 19, 18.5, 18],
-  },
-  measurements: {
-    chest: 38.5,
-    waist: 32,
-    hips: 38,
-    arms: 14,
-    thighs: 23,
-  },
-};
+import LogMetricModal from '@/components/LogMetricModal';
+import { useAuthStore } from '@/store/authStore';
+import {
+  getBodyMetrics,
+  getLatestBodyMetric,
+  createBodyMetric,
+  type BodyMetric,
+} from '@/lib/api/body-metrics';
+import { Skeleton } from '@/components/AnimatedComponents';
 
 const quickLogOptions = [
-  { id: 'weight', title: 'Log Weight', subtitle: 'Update today’s weigh‑in' },
-  { id: 'bodyfat', title: 'Log Body Fat', subtitle: 'Track composition trend' },
-  { id: 'measurements', title: 'Add Measurements', subtitle: 'Chest, waist, hips' },
+  { id: 'weight' as const, title: 'Log Weight', subtitle: 'Update today\u2019s weigh\u2011in' },
+  { id: 'bodyFat' as const, title: 'Log Body Fat', subtitle: 'Track composition trend' },
+  { id: 'measurements' as const, title: 'Add Measurements', subtitle: 'Chest, waist, hips' },
 ];
 
 export default function BodyMetricsScreen() {
+  const { isAuthenticated } = useAuthStore();
+  const [latest, setLatest] = useState<BodyMetric | null>(null);
+  const [history, setHistory] = useState<BodyMetric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalType, setModalType] = useState<'weight' | 'bodyFat' | 'measurements' | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) loadData();
+    else setLoading(false);
+  }, [isAuthenticated]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [latestRes, historyRes] = await Promise.all([
+        getLatestBodyMetric(),
+        getBodyMetrics({ limit: 6 }),
+      ]);
+      setLatest(latestRes.bodyMetric);
+      setHistory(historyRes.bodyMetrics);
+    } catch (error) {
+      console.error('Failed to load body metrics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLog = async (data: Record<string, number | string>) => {
+    setSaving(true);
+    try {
+      await createBodyMetric(data as any);
+      setModalType(null);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to save metric:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Compute chart data from history (oldest first)
+  const weightData = [...history].reverse().map((m) => m.weight || 0).filter(Boolean);
+  const bodyFatData = [...history].reverse().map((m) => m.bodyFatPercentage || 0).filter(Boolean);
+
+  // Compute changes
+  const weightChange = weightData.length >= 2 ? Math.round((weightData[weightData.length - 1] - weightData[0]) * 10) / 10 : 0;
+  const bodyFatChange = bodyFatData.length >= 2 ? Math.round((bodyFatData[bodyFatData.length - 1] - bodyFatData[0]) * 10) / 10 : 0;
+
+  const lastUpdated = latest ? new Date(latest.measurementDate) : null;
+  const daysAgo = lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInUp.delay(50).duration(250)} style={styles.header}>
           <View>
             <Text style={styles.title}>Body Metrics</Text>
             <Text style={styles.subtitle}>Track weight, body fat, and measurements</Text>
           </View>
-          <Button title="Log Update" size="sm" onPress={() => {}} />
+          <Button title="Log Update" size="sm" onPress={() => setModalType('weight')} />
         </Animated.View>
 
-        <Animated.View entering={FadeInUp.delay(100).duration(250)}>
-          <Card style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-              <View>
-                <Text style={styles.summaryTitle}>Weight</Text>
-                <Text style={styles.summarySubtitle}>Last 6 weeks</Text>
-              </View>
-              <View style={styles.changePill}>
-                <Text style={styles.changeText}>{metrics.weight.change} lbs</Text>
-              </View>
-            </View>
-            <View style={styles.summaryRow}>
-              <View>
-                <Text style={styles.summaryValue}>{metrics.weight.current}</Text>
-                <Text style={styles.summaryUnit}>lbs</Text>
-              </View>
-              <MiniLineChart data={metrics.weight.data} width={140} height={50} color={colors.primary} />
-            </View>
-            <Text style={styles.summaryHint}>{metrics.weight.percent}% this month</Text>
-          </Card>
-        </Animated.View>
-
-        <Animated.View entering={FadeInUp.delay(150).duration(250)}>
-          <Card style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-              <View>
-                <Text style={styles.summaryTitle}>Body Fat</Text>
-                <Text style={styles.summarySubtitle}>3‑month trend</Text>
-              </View>
-              <View style={[styles.changePill, styles.changePillAlt]}>
-                <Text style={styles.changeText}>{metrics.bodyFat.change}%</Text>
-              </View>
-            </View>
-            <View style={styles.summaryRow}>
-              <View>
-                <Text style={styles.summaryValue}>{metrics.bodyFat.current}</Text>
-                <Text style={styles.summaryUnit}>%</Text>
-              </View>
-              <MiniLineChart data={metrics.bodyFat.data} width={140} height={50} color={colors.accent} />
-            </View>
-            <Text style={styles.summaryHint}>Leaning out while maintaining strength</Text>
-          </Card>
-        </Animated.View>
-
-        <Animated.View entering={FadeInUp.delay(200).duration(250)}>
-          <Card style={styles.quickLogCard}>
-            <Text style={styles.quickLogTitle}>Quick Log</Text>
-            <View style={styles.quickLogOptions}>
-              {quickLogOptions.map((option) => (
-                <Pressable key={option.id} style={styles.quickLogOption}>
-                  <Text style={styles.quickLogOptionTitle}>{option.title}</Text>
-                  <Text style={styles.quickLogOptionSubtitle}>{option.subtitle}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Card>
-        </Animated.View>
-
-        <Animated.View entering={FadeInUp.delay(250).duration(250)}>
-          <Card style={styles.measurementsCard}>
-            <View style={styles.measurementsHeader}>
-              <Text style={styles.measurementsTitle}>Measurements</Text>
-              <LinearGradient colors={gradients.primary} style={styles.measurementsBadge}>
-                <Text style={styles.measurementsBadgeText}>Updated 5 days ago</Text>
-              </LinearGradient>
-            </View>
-            <View style={styles.measurementsGrid}>
-              {Object.entries(metrics.measurements).map(([key, value]) => (
-                <View key={key} style={styles.measurementItem}>
-                  <Text style={styles.measurementLabel}>{key}</Text>
-                  <Text style={styles.measurementValue}>{value} in</Text>
+        {loading ? (
+          <View style={{ gap: spacing.lg }}>
+            {[0, 1].map((i) => (
+              <View key={i} style={{ backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderLight }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                  <View>
+                    <Skeleton width={80} height={20} borderRadius={6} />
+                    <Skeleton width={100} height={14} borderRadius={4} style={{ marginTop: spacing.xs }} />
+                  </View>
                 </View>
-              ))}
-            </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <View>
+                    <Skeleton width={60} height={36} borderRadius={8} />
+                    <Skeleton width={30} height={14} borderRadius={4} style={{ marginTop: spacing.xs }} />
+                  </View>
+                  <Skeleton width={140} height={50} borderRadius={8} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : !isAuthenticated ? (
+          <Card style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Sign in to track metrics</Text>
+            <Text style={styles.summarySubtitle}>Log weight, body fat, and measurements.</Text>
           </Card>
-        </Animated.View>
+        ) : (
+          <>
+            <Animated.View entering={FadeInUp.delay(100).duration(250)}>
+              <Card style={styles.summaryCard}>
+                <View style={styles.summaryHeader}>
+                  <View>
+                    <Text style={styles.summaryTitle}>Weight</Text>
+                    <Text style={styles.summarySubtitle}>Last {weightData.length} entries</Text>
+                  </View>
+                  {weightChange !== 0 && (
+                    <View style={styles.changePill}>
+                      <Text style={styles.changeText}>{weightChange > 0 ? '+' : ''}{weightChange} lbs</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.summaryRow}>
+                  <View>
+                    <Text style={styles.summaryValue}>{latest?.weight ?? '—'}</Text>
+                    <Text style={styles.summaryUnit}>{latest?.weightUnit || 'lbs'}</Text>
+                  </View>
+                  {weightData.length >= 2 && (
+                    <MiniLineChart data={weightData} width={140} height={50} color={colors.primary} />
+                  )}
+                </View>
+              </Card>
+            </Animated.View>
 
-        <Animated.View entering={FadeInUp.delay(300).duration(250)}>
-          <Card style={styles.insightCard}>
-            <Text style={styles.insightTitle}>Body Composition Insight</Text>
-            <Text style={styles.insightText}>
-              Weight is down 2.6% while strength volume is holding steady — great lean‑mass retention.
-            </Text>
-          </Card>
-        </Animated.View>
+            <Animated.View entering={FadeInUp.delay(150).duration(250)}>
+              <Card style={styles.summaryCard}>
+                <View style={styles.summaryHeader}>
+                  <View>
+                    <Text style={styles.summaryTitle}>Body Fat</Text>
+                    <Text style={styles.summarySubtitle}>Trend</Text>
+                  </View>
+                  {bodyFatChange !== 0 && (
+                    <View style={[styles.changePill, styles.changePillAlt]}>
+                      <Text style={styles.changeText}>{bodyFatChange > 0 ? '+' : ''}{bodyFatChange}%</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.summaryRow}>
+                  <View>
+                    <Text style={styles.summaryValue}>{latest?.bodyFatPercentage ?? '—'}</Text>
+                    <Text style={styles.summaryUnit}>%</Text>
+                  </View>
+                  {bodyFatData.length >= 2 && (
+                    <MiniLineChart data={bodyFatData} width={140} height={50} color={colors.accent} />
+                  )}
+                </View>
+              </Card>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(200).duration(250)}>
+              <Card style={styles.quickLogCard}>
+                <Text style={styles.quickLogTitle}>Quick Log</Text>
+                <View style={styles.quickLogOptions}>
+                  {quickLogOptions.map((option) => (
+                    <Pressable key={option.id} style={styles.quickLogOption} onPress={() => setModalType(option.id)}>
+                      <Text style={styles.quickLogOptionTitle}>{option.title}</Text>
+                      <Text style={styles.quickLogOptionSubtitle}>{option.subtitle}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </Card>
+            </Animated.View>
+
+            {latest && (latest.chest || latest.waist || latest.hips || latest.arms || latest.thighs) && (
+              <Animated.View entering={FadeInUp.delay(250).duration(250)}>
+                <Card style={styles.measurementsCard}>
+                  <View style={styles.measurementsHeader}>
+                    <Text style={styles.measurementsTitle}>Measurements</Text>
+                    {daysAgo !== null && (
+                      <LinearGradient colors={gradients.primary} style={styles.measurementsBadge}>
+                        <Text style={styles.measurementsBadgeText}>
+                          {daysAgo === 0 ? 'Today' : `${daysAgo} days ago`}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                  </View>
+                  <View style={styles.measurementsGrid}>
+                    {[
+                      { key: 'chest', value: latest.chest },
+                      { key: 'waist', value: latest.waist },
+                      { key: 'hips', value: latest.hips },
+                      { key: 'arms', value: latest.arms },
+                      { key: 'thighs', value: latest.thighs },
+                    ]
+                      .filter((m) => m.value)
+                      .map((m) => (
+                        <View key={m.key} style={styles.measurementItem}>
+                          <Text style={styles.measurementLabel}>{m.key}</Text>
+                          <Text style={styles.measurementValue}>{m.value} {latest.measurementUnit}</Text>
+                        </View>
+                      ))}
+                  </View>
+                </Card>
+              </Animated.View>
+            )}
+          </>
+        )}
       </ScrollView>
+
+      {modalType && (
+        <LogMetricModal
+          visible={true}
+          type={modalType}
+          onClose={() => setModalType(null)}
+          onSubmit={handleLog}
+          loading={saving}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -187,6 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success + '18',
     borderWidth: 1,
     borderColor: colors.success + '44',
+    alignSelf: 'flex-start',
   },
   changePillAlt: {
     backgroundColor: colors.primary + '18',
@@ -209,11 +300,6 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-  },
-  summaryHint: {
-    ...typography.caption1,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
   },
   quickLogCard: {
     padding: spacing.lg,
@@ -289,18 +375,5 @@ const styles = StyleSheet.create({
     ...typography.headline,
     color: colors.text,
     marginTop: spacing.xs,
-  },
-  insightCard: {
-    padding: spacing.lg,
-  },
-  insightTitle: {
-    ...typography.title3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  insightText: {
-    ...typography.subhead,
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
 });

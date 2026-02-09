@@ -83,9 +83,9 @@ export function Button({
         />
       )}
       {loading ? (
-        <ActivityIndicator 
-          color={variant === 'primary' ? colors.textInverse : colors.primary} 
-          size="small" 
+        <ActivityIndicator
+          color={variant === 'primary' ? '#FFFFFF' : colors.primary}
+          size="small"
         />
       ) : (
         <Text style={[
@@ -113,12 +113,13 @@ const styles = StyleSheet.create({
   },
   primary: {
     backgroundColor: 'transparent',
-    ...shadows.glow,
+    ...shadows.glowFlame,
   },
   secondary: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
+    ...shadows.glowSm,
   },
   ghost: {
     backgroundColor: 'transparent',
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
     ...typography.headline,
   },
   textPrimary: {
-    color: colors.textInverse,
+    color: '#FFFFFF',
   },
   textSecondary: {
     color: colors.text,

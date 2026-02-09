@@ -48,25 +48,29 @@ export const lightColors = {
   chartPurple: '#7B3FA1',
 };
 
-// Dark mode colors (optional)
+// Dark mode colors (primary experience)
 export const darkColors = {
   primary: '#FF9A54',
   primaryLight: '#FFB879',
   primaryDark: '#E37229',
   accent: '#9B5AC2',
+  accentLight: '#B77DDB',
   accentDark: '#6B3A93',
 
   background: '#0F0B16',
   surface: '#171321',
   surfaceElevated: '#1E182B',
+  surfaceGlow: '#1E182B',
 
   text: '#F5F2F7',
   textSecondary: '#B7AFC2',
   textTertiary: '#8B8296',
-  textInverse: '#0F0B16',
+  textInverse: '#FFFFFF',
 
   border: '#2A2336',
   borderLight: '#1E182B',
+  borderGlow: 'rgba(123, 63, 161, 0.25)',
+  glowFlame: 'rgba(255, 138, 61, 0.15)',
 
   success: '#3DD598',
   warning: '#F4C24D',
@@ -80,8 +84,8 @@ export const darkColors = {
   chartPurple: '#9B5AC2',
 };
 
-// Default to light mode
-export const colors = lightColors;
+// Default to dark mode
+export const colors = darkColors;
 
 // Premium gradients
 export const gradients = {
@@ -89,11 +93,26 @@ export const gradients = {
   primary: ['#7B3FA1', '#FF8A3D'] as const,
   primaryReverse: ['#FF8A3D', '#7B3FA1'] as const,
 
-  // Subtle background wash
-  background: ['#F6F3F1', '#FFFFFF'] as const,
+  // Dark background wash
+  background: ['#0F0B16', '#171321'] as const,
 
   // Accent glow
   glow: ['rgba(123, 63, 161, 0.25)', 'rgba(255, 138, 61, 0.08)'] as const,
+
+  // Plum accent
+  glowPlum: ['#7B3FA1', '#5A2D7A'] as const,
+
+  // Flame CTA
+  glowFlame: ['#FF8A3D', '#E6642E'] as const,
+
+  // Plum → Flame hero elements
+  glowMixed: ['#7B3FA1', '#FF8A3D'] as const,
+
+  // Subtle card surface
+  cardSurface: ['#1E182B', '#171321'] as const,
+
+  // Deep background
+  nightSky: ['#0F0B16', '#1A1228', '#0F0B16'] as const,
 };
 
 export const spacing = {
@@ -189,31 +208,55 @@ export const shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   md: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 3,
+    elevation: 4,
   },
   lg: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
-    elevation: 6,
+    elevation: 8,
   },
   // Colored glow shadow for CTAs
   glow: {
     shadowColor: '#7B3FA1',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 8,
+  },
+  // Plum glow (small)
+  glowSm: {
+    shadowColor: '#7B3FA1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  // Plum glow (medium)
+  glowMd: {
+    shadowColor: '#7B3FA1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  // Flame glow
+  glowFlame: {
+    shadowColor: '#FF8A3D',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
 };
 

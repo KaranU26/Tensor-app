@@ -16,8 +16,11 @@ import { colors, typography, spacing, borderRadius, gradients, shadows } from '@
 import { Card, Button } from '@/components/ui';
 import { PremiumButton } from '@/components/PremiumButton';
 import { useGoalsStore } from '@/store/goalsStore';
+import { useAuthStore } from '@/store/authStore';
+import { logRomMeasurement, updateFlexibilityGoal } from '@/lib/api/flexibility-goals';
 import { EmptyState } from '@/components/EmptyState';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 
 const AREA_LABELS: Record<string, string> = {
   hamstrings: 'Hamstrings',
@@ -33,9 +36,12 @@ const AREA_LABELS: Record<string, string> = {
 
 export default function GoalCheckInScreen() {
   const { goalId } = useLocalSearchParams<{ goalId?: string }>();
+  const { isAuthenticated } = useAuthStore();
   const goals = useGoalsStore((state) => state.goals);
   const updateGoal = useGoalsStore((state) => state.updateGoal);
   const completeGoal = useGoalsStore((state) => state.completeGoal);
+  const fetchGoals = useGoalsStore((state) => state.fetchGoals);
+  const [saving, setSaving] = useState(false);
 
   const activeGoals = useMemo(() => goals.filter((goal) => goal.status === 'active'), [goals]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -67,8 +73,8 @@ export default function GoalCheckInScreen() {
     );
   };
 
-  const handleSave = () => {
-    if (!selectedGoal) return;
+  const handleSave = async () => {
+    if (!selectedGoal || saving) return;
     const newRom = Number(romValue);
     if (!Number.isFinite(newRom) || newRom <= 0) {
       setError('Enter a valid ROM value.');
@@ -79,44 +85,71 @@ export default function GoalCheckInScreen() {
       return;
     }
 
-    const now = new Date();
-    const todayLabel = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-    const lastCheck = selectedGoal.lastCheckInAt ? new Date(selectedGoal.lastCheckInAt) : null;
-    const daysSinceLast = lastCheck ? (now.getTime() - lastCheck.getTime()) / (1000 * 60 * 60 * 24) : null;
-    const nextStreak = daysSinceLast !== null && daysSinceLast <= 1.5
-      ? selectedGoal.streakDays + 1
-      : 1;
-    const history = [...selectedGoal.history, newRom];
-    const areas = selectedAreas.length > 0 ? selectedAreas : (selectedGoal.focusAreas || []);
-    const checkIns = [...(selectedGoal.checkIns || []), { date: now.toISOString(), rom: newRom, areas }];
-    updateGoal(selectedGoal.id, {
-      currentRom: newRom,
-      history,
-      checkIns,
-      lastCheckIn: todayLabel,
-      lastCheckInAt: now.toISOString(),
-      sessionsCompleted: selectedGoal.sessionsCompleted + 1,
-      streakDays: nextStreak,
-    });
+    setSaving(true);
+    try {
+      if (isAuthenticated) {
+        await logRomMeasurement(selectedGoal.id, {
+          romDegrees: newRom,
+          measurementMethod: selectedGoal.method,
+        });
 
-    if (newRom >= selectedGoal.targetRom) {
-      completeGoal(selectedGoal.id);
-      Alert.alert('Goal achieved', 'You hit your target ROM! 🎉', [
-        { text: 'View goals', onPress: () => router.replace('/goals') },
-      ]);
-      return;
+        if (newRom >= selectedGoal.targetRom) {
+          await updateFlexibilityGoal(selectedGoal.id, { status: 'completed' });
+          await fetchGoals();
+          Alert.alert('Goal achieved', 'You hit your target ROM!', [
+            { text: 'View goals', onPress: () => router.replace('/goals') },
+          ]);
+          return;
+        }
+
+        await fetchGoals();
+      } else {
+        const now = new Date();
+        const todayLabel = now.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        });
+        const lastCheck = selectedGoal.lastCheckInAt ? new Date(selectedGoal.lastCheckInAt) : null;
+        const daysSinceLast = lastCheck ? (now.getTime() - lastCheck.getTime()) / (1000 * 60 * 60 * 24) : null;
+        const nextStreak = daysSinceLast !== null && daysSinceLast <= 1.5
+          ? selectedGoal.streakDays + 1
+          : 1;
+        const history = [...selectedGoal.history, newRom];
+        const areas = selectedAreas.length > 0 ? selectedAreas : (selectedGoal.focusAreas || []);
+        const checkIns = [...(selectedGoal.checkIns || []), { date: now.toISOString(), rom: newRom, areas }];
+        updateGoal(selectedGoal.id, {
+          currentRom: newRom,
+          history,
+          checkIns,
+          lastCheckIn: todayLabel,
+          lastCheckInAt: now.toISOString(),
+          sessionsCompleted: selectedGoal.sessionsCompleted + 1,
+          streakDays: nextStreak,
+        });
+
+        if (newRom >= selectedGoal.targetRom) {
+          completeGoal(selectedGoal.id);
+          Alert.alert('Goal achieved', 'You hit your target ROM!', [
+            { text: 'View goals', onPress: () => router.replace('/goals') },
+          ]);
+          return;
+        }
+      }
+
+      router.replace('/goals');
+    } catch (error) {
+      console.error('Failed to save check-in:', error);
+      Alert.alert('Error', 'Failed to save check-in. Please try again.');
+    } finally {
+      setSaving(false);
     }
-
-    router.replace('/goals');
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <Animated.View entering={FadeInUp.delay(50).duration(250)}>
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Goal Check‑In</Text>
@@ -126,6 +159,7 @@ export default function GoalCheckInScreen() {
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
         </View>
+        </Animated.View>
 
         {activeGoals.length === 0 ? (
           <EmptyState
@@ -137,6 +171,7 @@ export default function GoalCheckInScreen() {
           />
         ) : (
           <>
+            <Animated.View entering={FadeInUp.delay(100).duration(250)}>
             <Card style={styles.card}>
               <Text style={styles.cardTitle}>Select goal</Text>
               <View style={styles.goalList}>
@@ -170,8 +205,10 @@ export default function GoalCheckInScreen() {
                 })}
               </View>
             </Card>
+            </Animated.View>
 
             {selectedGoal && (
+              <Animated.View entering={FadeInUp.delay(200).duration(250)}>
               <Card style={styles.card}>
                 <Text style={styles.cardTitle}>Log ROM</Text>
                 <Text style={styles.cardSubtitle}>
@@ -214,8 +251,10 @@ export default function GoalCheckInScreen() {
                   </View>
                 </View>
               </Card>
+              </Animated.View>
             )}
 
+            <Animated.View entering={FadeInUp.delay(300).duration(250)}>
             <View style={styles.footer}>
               <Button
                 title="Cancel"
@@ -230,6 +269,7 @@ export default function GoalCheckInScreen() {
                 style={styles.footerButton}
               />
             </View>
+            </Animated.View>
           </>
         )}
       </ScrollView>

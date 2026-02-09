@@ -104,6 +104,21 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       synced INTEGER DEFAULT 0
     );
     
+    -- Stretching routines cache
+    CREATE TABLE IF NOT EXISTS stretching_routines (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      difficulty TEXT,
+      duration_seconds INTEGER,
+      duration_minutes INTEGER,
+      category TEXT,
+      user_id TEXT,
+      is_system INTEGER DEFAULT 0,
+      stretches_json TEXT,
+      cached_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Create indexes for common queries
     CREATE INDEX IF NOT EXISTS idx_workouts_started ON workouts(started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workout_exercises_workout ON workout_exercises(workout_id);
@@ -246,6 +261,49 @@ export async function markSyncError(id: number, error: string): Promise<void> {
   );
 }
 
+// Stretching routine cache
+export async function cacheStretchingRoutines(routines: any[]): Promise<void> {
+  const database = await getDatabase();
+
+  for (const routine of routines) {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO stretching_routines (id, name, description, difficulty, duration_seconds, duration_minutes, category, user_id, is_system, stretches_json, cached_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        routine.id,
+        routine.name,
+        routine.description || null,
+        routine.difficulty || null,
+        routine.durationSeconds || null,
+        routine.durationMinutes || null,
+        routine.category || null,
+        routine.userId || null,
+        routine.isSystem ? 1 : 0,
+        JSON.stringify(routine.stretches || []),
+      ]
+    );
+  }
+}
+
+export async function getCachedStretchingRoutines(): Promise<any[]> {
+  const database = await getDatabase();
+  const results = await database.getAllAsync(
+    `SELECT * FROM stretching_routines ORDER BY is_system DESC, name ASC`
+  );
+  return results.map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    difficulty: row.difficulty,
+    durationSeconds: row.duration_seconds,
+    durationMinutes: row.duration_minutes,
+    category: row.category,
+    userId: row.user_id,
+    isSystem: row.is_system === 1,
+    stretches: JSON.parse(row.stretches_json || '[]'),
+  }));
+}
+
 export default {
   initDatabase,
   getDatabase,
@@ -254,6 +312,8 @@ export default {
   saveSetLocally,
   cacheExercises,
   getCachedExercises,
+  cacheStretchingRoutines,
+  getCachedStretchingRoutines,
   addToSyncQueue,
   getPendingSyncItems,
   removeSyncItem,

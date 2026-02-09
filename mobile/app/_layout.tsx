@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import {
   Sora_400Regular,
@@ -16,11 +16,13 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { initializeApp } from '@/lib/init';
-import { requestNotificationPermission } from '@/lib/notifications';
+import { requestNotificationPermission, registerPushToken } from '@/lib/notifications';
+import { configureRevenueCat, loginRevenueCat } from '@/lib/revenuecat';
 import { colors } from '@/config/theme';
 import { setAudioEnabled, setHapticsEnabled } from '@/lib/sounds';
 
@@ -50,6 +52,9 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
 
   const loadStoredAuth = useAuthStore((state) => state.loadStoredAuth);
+  const user = useAuthStore((state) => state.user);
+  const checkEntitlements = useSubscriptionStore((state) => state.checkEntitlements);
+  const setupCustomerInfoListener = useSubscriptionStore((state) => state.setupCustomerInfoListener);
   const hapticsEnabled = useSettingsStore((state) => state.preferences.hapticsEnabled);
   const soundsEnabled = useSettingsStore((state) => state.preferences.soundsEnabled);
 
@@ -60,33 +65,65 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      // Initialize app (database, sync engine, notifications)
       const init = async () => {
+        // 1. Configure RevenueCat first (before any entitlement checks)
+        try {
+          await configureRevenueCat();
+        } catch (e) {
+          console.warn('[Layout] RevenueCat configure failed:', e);
+        }
+
+        // 2. Load stored auth
         try {
           await loadStoredAuth();
         } catch (e) {
           console.warn('[Layout] Auth load failed:', e);
         }
-        
+
+        // 3. Check entitlements via RevenueCat
+        try {
+          await checkEntitlements();
+        } catch (e) {
+          console.warn('[Layout] Subscription check failed:', e);
+        }
+
+        // 4. Initialize app (database, sync engine)
         try {
           await initializeApp();
         } catch (e) {
           console.warn('[Layout] App init failed:', e);
         }
-        
+
+        // 5. Set up notifications
         try {
           await requestNotificationPermission();
+          await registerPushToken();
         } catch (e) {
           console.warn('[Layout] Notifications failed (OK in Expo Go):', e);
         }
-        
+
         setAppReady(true);
         SplashScreen.hideAsync();
       };
-      
+
       init();
     }
   }, [loaded]);
+
+  // Identify user with RevenueCat when auth state changes
+  useEffect(() => {
+    if (user?.id) {
+      loginRevenueCat(user.id).catch((e) =>
+        console.warn('[Layout] RevenueCat login failed:', e)
+      );
+    }
+  }, [user?.id]);
+
+  // Listen for real-time subscription changes from RevenueCat
+  useEffect(() => {
+    const removeListener = setupCustomerInfoListener();
+    return removeListener;
+  }, []);
 
   useEffect(() => {
     setHapticsEnabled(hapticsEnabled);
@@ -108,45 +145,44 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="signup" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen 
-          name="player" 
-          options={{ 
-            headerShown: false,
+    <ThemeProvider value={DarkTheme}>
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="signup" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen
+          name="player"
+          options={{
             presentation: 'fullScreenModal',
             animation: 'slide_from_bottom'
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="routine-complete" 
-          options={{ 
-            headerShown: false,
-            presentation: 'fullScreenModal'
-          }} 
-        />
-        <Stack.Screen 
-          name="workout-complete" 
-          options={{ 
-            headerShown: false,
+        <Stack.Screen
+          name="routine-complete"
+          options={{
             presentation: 'fullScreenModal',
             animation: 'fade'
-          }} 
+          }}
         />
-        <Stack.Screen name="goals" options={{ headerShown: false }} />
-        <Stack.Screen name="goal-create" options={{ headerShown: false }} />
-        <Stack.Screen name="goal-checkin" options={{ headerShown: false }} />
-        <Stack.Screen name="body-metrics" options={{ headerShown: false }} />
-        <Stack.Screen name="paywall" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="notifications" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen
+          name="workout-complete"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade'
+          }}
+        />
+        <Stack.Screen name="goals" />
+        <Stack.Screen name="goal-create" />
+        <Stack.Screen name="goal-checkin" />
+        <Stack.Screen name="body-metrics" />
+        <Stack.Screen name="create-routine" />
+        <Stack.Screen name="record-progress" />
+        <Stack.Screen name="routine" />
+        <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </ThemeProvider>
   );

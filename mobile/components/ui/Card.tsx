@@ -5,7 +5,7 @@ import { colors, borderRadius, shadows, spacing } from '@/config/theme';
 interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
-  variant?: 'elevated' | 'flat' | 'outlined';
+  variant?: 'elevated' | 'flat' | 'outlined' | 'glow';
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
@@ -21,6 +21,7 @@ export function Card({
       variant === 'elevated' && styles.elevated,
       variant === 'flat' && styles.flat,
       variant === 'outlined' && styles.outlined,
+      variant === 'glow' && styles.glow,
       padding === 'sm' && styles.paddingSm,
       padding === 'md' && styles.paddingMd,
       padding === 'lg' && styles.paddingLg,
@@ -41,6 +42,8 @@ const styles = StyleSheet.create({
   },
   elevated: {
     ...shadows.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
   },
   flat: {
     backgroundColor: colors.surface,
@@ -50,6 +53,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent',
+  },
+  glow: {
+    backgroundColor: colors.surfaceGlow,
+    borderColor: colors.borderGlow,
+    ...shadows.glowSm,
   },
   paddingSm: {
     padding: spacing.sm,

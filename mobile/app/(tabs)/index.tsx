@@ -23,6 +23,8 @@ import { colors, typography, spacing, borderRadius } from '@/config/theme';
 import { CalendarStrip, SessionCard, CategoryCard, Card } from '@/components/ui';
 import { AnimatedCard, Skeleton } from '@/components/AnimatedComponents';
 import { RecoveryCard } from '@/components/RecoveryCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
+import { getDashboardStats, type DashboardStats } from '@/lib/api/strength';
 
 interface Routine {
   id: string;
@@ -38,9 +40,10 @@ export default function HomeScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
   const { user, isAuthenticated } = useAuthStore();
 
-  const fetchRoutines = async () => {
+  const fetchData = async () => {
     try {
       const response = await fetch(`${API_URL}/stretching/routines`);
       if (response.ok) {
@@ -49,19 +52,28 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.log('Failed to fetch routines:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
     }
+
+    if (isAuthenticated) {
+      try {
+        const stats = await getDashboardStats();
+        setDashStats(stats);
+      } catch (error) {
+        console.log('Failed to fetch dashboard stats:', error);
+      }
+    }
+
+    setLoading(false);
+    setRefreshing(false);
   };
 
   useEffect(() => {
-    fetchRoutines();
-  }, []);
+    fetchData();
+  }, [isAuthenticated]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchRoutines();
+    fetchData();
   };
 
   const greeting = () => {
@@ -75,7 +87,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       
       <ScrollView bounces={false} 
         style={styles.scrollView}
@@ -102,6 +114,9 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
+        {/* Sync Status */}
+        <SyncStatusBar />
+
         {/* Calendar Strip - Slide in from right */}
         <Animated.View entering={FadeInRight.delay(200).duration(250)}>
           <CalendarStrip
@@ -118,10 +133,21 @@ export default function HomeScreen() {
           <Card style={styles.focusCard}>
             <View style={styles.focusHeader}>
               <Text style={styles.focusLabel}>Today's Focus</Text>
-              <Text style={styles.focusBadge}>Hybrid</Text>
+              <Text style={styles.focusBadge}>
+                {(user as any)?.onboarding?.focus === 'strength' ? 'Strength'
+                  : (user as any)?.onboarding?.focus === 'mobility' ? 'Mobility'
+                  : (user as any)?.onboarding?.focus === 'recovery' ? 'Recovery'
+                  : 'Hybrid'}
+              </Text>
             </View>
-            <Text style={styles.focusTitle}>Strength + Mobility</Text>
-            <Text style={styles.focusSubtitle}>45 min strength • 10 min stretch</Text>
+            <Text style={styles.focusTitle}>
+              {todayRoutine ? todayRoutine.name : 'Strength + Mobility'}
+            </Text>
+            <Text style={styles.focusSubtitle}>
+              {todayRoutine
+                ? `${todayRoutine.durationMinutes} min • ${todayRoutine.category}`
+                : 'Pick a routine below to get started'}
+            </Text>
           </Card>
         </Animated.View>
 
@@ -142,9 +168,9 @@ export default function HomeScreen() {
             <SessionCard
               title={todayRoutine.name}
               subtitle={todayRoutine.category}
-              dayNumber={Math.floor(Math.random() * 30) + 1}
+              dayNumber={dashStats ? dashStats.totalWorkouts + dashStats.weekStretchingSessions + 1 : 1}
               duration={todayRoutine.durationMinutes}
-              calories={Math.round(todayRoutine.durationMinutes * 6)}
+              calories={Math.round(todayRoutine.durationMinutes * 3.5)}
               onPress={() => router.push({
                 pathname: '/player',
                 params: { routineId: todayRoutine.id }
@@ -239,17 +265,23 @@ export default function HomeScreen() {
             <View style={styles.statsRow}>
               <AnimatedCard style={styles.statCard} delay={600}>
                 <Text style={styles.statIcon}>🔥</Text>
-                <Text style={styles.statValue}>3</Text>
+                <Text style={styles.statValue}>
+                  {dashStats ? dashStats.weekWorkouts + dashStats.weekStretchingSessions : '—'}
+                </Text>
                 <Text style={styles.statLabel}>Workouts</Text>
               </AnimatedCard>
               <AnimatedCard style={styles.statCard} delay={650}>
                 <Text style={styles.statIcon}>⏱</Text>
-                <Text style={styles.statValue}>45</Text>
+                <Text style={styles.statValue}>
+                  {dashStats ? dashStats.weekDurationMinutes : '—'}
+                </Text>
                 <Text style={styles.statLabel}>Minutes</Text>
               </AnimatedCard>
               <AnimatedCard style={styles.statCard} delay={700}>
                 <Text style={styles.statIcon}>⚡</Text>
-                <Text style={styles.statValue}>320</Text>
+                <Text style={styles.statValue}>
+                  {dashStats ? dashStats.weekCalories : '—'}
+                </Text>
                 <Text style={styles.statLabel}>Calories</Text>
               </AnimatedCard>
             </View>
@@ -361,7 +393,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.borderGlow,
   },
   quickEmoji: {
     fontSize: 20,

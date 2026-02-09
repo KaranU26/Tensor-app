@@ -5,6 +5,7 @@
 
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { fetchWithAuth } from './api/fetchWithAuth';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -241,4 +242,22 @@ export async function notifyPR(
     `${exerciseName}: ${weight} lbs × ${reps} reps`,
     { type: 'personal_record' }
   );
+}
+
+// ============================================
+// Push Token Registration
+// ============================================
+
+export async function registerPushToken(): Promise<void> {
+  const token = await getExpoPushToken();
+  if (!token) return;
+
+  try {
+    await fetchWithAuth('/user/push-token', {
+      method: 'PUT',
+      body: JSON.stringify({ pushToken: token }),
+    });
+  } catch (error) {
+    console.warn('[Notifications] Failed to register push token:', error);
+  }
 }

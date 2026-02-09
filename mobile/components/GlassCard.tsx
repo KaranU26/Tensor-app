@@ -33,7 +33,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function GlassCard({
   children,
   onPress,
-  intensity = 40,
+  intensity = 60,
   tint = 'dark',
   style,
   animated = true,
@@ -159,13 +159,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: '#7B3FA1',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(123, 63, 161, 0.2)',
     pointerEvents: 'none',
   },
   androidBackdrop: {

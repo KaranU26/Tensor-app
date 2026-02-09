@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,18 +11,21 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { 
+import Animated, {
   FadeInUp,
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring 
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring
 } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '@/config/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { Card, Button } from '@/components/ui';
 import { playHaptic } from '@/lib/sounds';
 import { PremiumButton } from '@/components/PremiumButton';
+import { getDashboardStats, type DashboardStats } from '@/lib/api/strength';
+import { Skeleton } from '@/components/AnimatedComponents';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -78,7 +81,7 @@ interface ThemeToggleRowProps {
 }
 
 function ThemeToggleRow({ delay = 0 }: ThemeToggleRowProps) {
-  const [isDark, setIsDark] = React.useState(false); // Will be controlled by ThemeContext
+  const [isDark, setIsDark] = React.useState(true); // Dark mode is default
   
   const handleToggle = (value: boolean) => {
     playHaptic('selection');
@@ -116,7 +119,16 @@ function ThemeToggleRow({ delay = 0 }: ThemeToggleRowProps) {
 
 export default function ProfileScreen() {
   const { user, isAuthenticated, logout } = useAuthStore();
-  const isPro = false;
+  const { isPro } = useSubscriptionStore();
+  const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      getDashboardStats()
+        .then(setDashStats)
+        .catch((e) => console.log('Failed to fetch profile stats:', e));
+    }
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -139,7 +151,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       
       <ScrollView bounces={false} style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
@@ -218,19 +230,31 @@ export default function ProfileScreen() {
           <View style={styles.statsRow}>
             <Animated.View entering={FadeInUp.delay(150).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
-                <Text style={styles.statValue}>12</Text>
+                {dashStats ? (
+                  <Text style={styles.statValue}>{dashStats.totalWorkouts}</Text>
+                ) : (
+                  <Skeleton width={32} height={24} borderRadius={6} />
+                )}
                 <Text style={styles.statLabel}>Workouts</Text>
               </Card>
             </Animated.View>
             <Animated.View entering={FadeInUp.delay(200).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
-                <Text style={styles.statValue}>5</Text>
+                {dashStats ? (
+                  <Text style={styles.statValue}>{dashStats.currentStreak}</Text>
+                ) : (
+                  <Skeleton width={24} height={24} borderRadius={6} />
+                )}
                 <Text style={styles.statLabel}>Day Streak</Text>
               </Card>
             </Animated.View>
             <Animated.View entering={FadeInUp.delay(250).duration(250)} style={{ flex: 1 }}>
               <Card style={styles.statCard}>
-                <Text style={styles.statValue}>3</Text>
+                {dashStats ? (
+                  <Text style={styles.statValue}>{dashStats.personalRecords}</Text>
+                ) : (
+                  <Skeleton width={24} height={24} borderRadius={6} />
+                )}
                 <Text style={styles.statLabel}>PRs</Text>
               </Card>
             </Animated.View>

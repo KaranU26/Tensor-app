@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 import { colors, typography, spacing, borderRadius, gradients, shadows } from '@/config/theme';
 import { ErrorBanner } from '@/components/ui';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -86,20 +87,22 @@ export default function SignupScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Header */}
-          <View style={styles.header}>
-            <LinearGradient
-              colors={gradients.primary}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoRing}
-            >
-              <Text style={styles.logo}>🧘‍♂️</Text>
-            </LinearGradient>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>
-              Start your fitness journey today
-            </Text>
-          </View>
+          <Animated.View entering={FadeInUp.delay(50).duration(250)}>
+            <View style={styles.header}>
+              <LinearGradient
+                colors={gradients.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoRing}
+              >
+                <Text style={styles.logo}>🧘‍♂️</Text>
+              </LinearGradient>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>
+                Start your fitness journey today
+              </Text>
+            </View>
+          </Animated.View>
 
           {error ? (
             <ErrorBanner
@@ -111,6 +114,7 @@ export default function SignupScreen() {
             />
           ) : null}
 
+          <Animated.View entering={FadeInUp.delay(100).duration(250)}>
           <View style={styles.socialRow}>
             <Pressable style={styles.socialButton} onPress={() => handleSocial('Apple')}>
               <Text style={styles.socialIcon}></Text>
@@ -121,8 +125,10 @@ export default function SignupScreen() {
               <Text style={styles.socialText}>Google</Text>
             </Pressable>
           </View>
+          </Animated.View>
 
           {/* Form */}
+          <Animated.View entering={FadeInUp.delay(150).duration(250)}>
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email *</Text>
@@ -196,8 +202,10 @@ export default function SignupScreen() {
               )}
             </Pressable>
           </View>
+          </Animated.View>
 
           {/* Footer */}
+          <Animated.View entering={FadeInUp.delay(200).duration(250)}>
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               Already have an account?{' '}
@@ -208,11 +216,14 @@ export default function SignupScreen() {
               </Pressable>
             </Link>
           </View>
+          </Animated.View>
 
           {/* Terms */}
+          <Animated.View entering={FadeInUp.delay(250).duration(250)}>
           <Text style={styles.terms}>
             By creating an account, you agree to our Terms of Service and Privacy Policy
           </Text>
+          </Animated.View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

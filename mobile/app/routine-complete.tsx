@@ -3,13 +3,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Button, Card } from '@/components/ui';
 import { colors, gradients, typography, spacing, borderRadius } from '@/config/theme';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 
 export default function RoutineCompleteScreen() {
-  const { routineName, duration, stretchCount } = useLocalSearchParams<{
+  const { routineName, duration, stretchCount, streak } = useLocalSearchParams<{
     routineName: string;
     duration: string;
     stretchCount: string;
+    streak: string;
   }>();
+
+  const streakDays = parseInt(streak || '0');
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -23,46 +27,60 @@ export default function RoutineCompleteScreen() {
   return (
     <LinearGradient colors={gradients.background} style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.emoji}>🎉</Text>
-        <Text style={styles.title}>Great Work!</Text>
-        <Text style={styles.subtitle}>You completed {routineName}</Text>
+        <Animated.View entering={FadeInUp.delay(100).duration(350)} style={{ alignItems: 'center' }}>
+          <Text style={styles.emoji}>🎉</Text>
+        </Animated.View>
+        <Animated.View entering={FadeInUp.delay(250).duration(250)}>
+          <Text style={styles.title}>Great Work!</Text>
+        </Animated.View>
+        <Animated.View entering={FadeInUp.delay(350).duration(250)}>
+          <Text style={styles.subtitle}>You completed {routineName}</Text>
+        </Animated.View>
 
-        <Card style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {formatDuration(parseInt(duration || '0'))}
-            </Text>
-            <Text style={styles.statLabel}>Duration</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stretchCount}</Text>
-            <Text style={styles.statLabel}>Stretches</Text>
-          </View>
-        </Card>
+        <Animated.View entering={FadeInUp.delay(450).duration(250)} style={{ width: '100%' }}>
+          <Card style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {formatDuration(parseInt(duration || '0'))}
+              </Text>
+              <Text style={styles.statLabel}>Duration</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stretchCount}</Text>
+              <Text style={styles.statLabel}>Stretches</Text>
+            </View>
+          </Card>
+        </Animated.View>
 
-        <View style={styles.streakCard}>
-          <Text style={styles.streakEmoji}>🔥</Text>
-          <Text style={styles.streakText}>5 Day Streak!</Text>
+        <Animated.View entering={FadeInUp.delay(550).duration(250)}>
+          {streakDays > 0 && (
+            <View style={styles.streakCard}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <Text style={styles.streakText}>{streakDays} Day Streak!</Text>
+            </View>
+          )}
+        </Animated.View>
+      </View>
+
+      <Animated.View entering={FadeInUp.delay(650).duration(250)}>
+        <View style={styles.buttons}>
+          <Button
+            title="Done"
+            onPress={() => router.replace('/(tabs)/stretching')}
+            size="lg"
+            fullWidth
+          />
+          <Button
+            title="View Progress"
+            onPress={() => router.replace('/(tabs)/progress')}
+            variant="secondary"
+            size="lg"
+            fullWidth
+            style={{ marginTop: spacing.md }}
+          />
         </View>
-      </View>
-
-      <View style={styles.buttons}>
-        <Button
-          title="Done"
-          onPress={() => router.replace('/(tabs)/stretching')}
-          size="lg"
-          fullWidth
-        />
-        <Button
-          title="View Progress"
-          onPress={() => router.replace('/(tabs)/progress')}
-          variant="secondary"
-          size="lg"
-          fullWidth
-          style={{ marginTop: spacing.md }}
-        />
-      </View>
+      </Animated.View>
     </LinearGradient>
   );
 }

@@ -317,6 +317,106 @@ stretchingRouter.post('/routines', requireAuth, async (req: AuthRequest, res, ne
   }
 });
 
+// PUT /api/v1/stretching/routines/:id - Update stretching routine (auth required)
+const updateStretchingRoutineSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  targetAreas: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  isPublic: z.boolean().optional(),
+  stretches: z.array(
+    z.object({
+      stretchId: z.string().uuid(),
+      customDurationSeconds: z.number().optional(),
+    })
+  ).optional(),
+});
+
+stretchingRouter.put('/routines/:id', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const data = updateStretchingRoutineSchema.parse(req.body);
+
+    const existing = await prisma.stretchingRoutine.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      throw new ApiError(404, 'ROUTINE_NOT_FOUND', 'Stretching routine not found');
+    }
+    if (existing.isSystem) {
+      throw new ApiError(403, 'FORBIDDEN', 'Cannot edit system routines');
+    }
+    if (existing.userId !== req.userId) {
+      throw new ApiError(403, 'FORBIDDEN', 'Not authorized');
+    }
+
+    // If stretches provided, recalculate duration and replace
+    let durationSeconds = existing.durationSeconds;
+    if (data.stretches) {
+      await prisma.routineStretch.deleteMany({ where: { routineId: req.params.id } });
+
+      const stretchIds = data.stretches.map(s => s.stretchId);
+      const stretches = await prisma.stretch.findMany({ where: { id: { in: stretchIds } } });
+      const stretchMap = new Map(stretches.map(s => [s.id, s]));
+
+      durationSeconds = 0;
+      data.stretches.forEach(s => {
+        const stretch = stretchMap.get(s.stretchId);
+        durationSeconds += s.customDurationSeconds || stretch?.durationSeconds || 30;
+      });
+    }
+
+    const routine = await prisma.stretchingRoutine.update({
+      where: { id: req.params.id },
+      data: {
+        name: data.name,
+        description: data.description,
+        difficulty: data.difficulty,
+        durationSeconds,
+        targetAreas: data.targetAreas ? JSON.stringify(data.targetAreas) : undefined,
+        tags: data.tags ? JSON.stringify(data.tags) : undefined,
+        isPublic: data.isPublic,
+        stretches: data.stretches ? {
+          create: data.stretches.map((s, index) => ({
+            stretchId: s.stretchId,
+            positionOrder: index + 1,
+            customDurationSeconds: s.customDurationSeconds,
+          })),
+        } : undefined,
+      },
+      include: {
+        stretches: {
+          include: { stretch: true },
+          orderBy: { positionOrder: 'asc' },
+        },
+      },
+    });
+
+    res.json({ routine });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/v1/stretching/routines/:id - Delete stretching routine (auth required)
+stretchingRouter.delete('/routines/:id', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.stretchingRoutine.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      throw new ApiError(404, 'ROUTINE_NOT_FOUND', 'Stretching routine not found');
+    }
+    if (existing.isSystem) {
+      throw new ApiError(403, 'FORBIDDEN', 'Cannot delete system routines');
+    }
+    if (existing.userId !== req.userId) {
+      throw new ApiError(403, 'FORBIDDEN', 'Not authorized');
+    }
+
+    await prisma.stretchingRoutine.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ============================================
 // SESSIONS
 // ============================================

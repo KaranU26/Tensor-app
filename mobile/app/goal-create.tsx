@@ -17,7 +17,9 @@ import { router } from 'expo-router';
 import { colors, typography, spacing, borderRadius, gradients, shadows } from '@/config/theme';
 import { Card, Button } from '@/components/ui';
 import { PremiumButton } from '@/components/PremiumButton';
-import { useGoalsStore } from '@/store/goalsStore';
+import { useGoalsStore, mapBackendGoal } from '@/store/goalsStore';
+import { useAuthStore } from '@/store/authStore';
+import { createFlexibilityGoal } from '@/lib/api/flexibility-goals';
 
 const steps = ['Goal', 'ROM', 'Method', 'Summary'];
 
@@ -46,7 +48,10 @@ const timelineOptions = [
 
 export default function GoalCreateScreen() {
   const addGoal = useGoalsStore((state) => state.addGoal);
+  const fetchGoals = useGoalsStore((state) => state.fetchGoals);
+  const { isAuthenticated } = useAuthStore();
   const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
   const [goalType, setGoalType] = useState(goalTypes[0]);
   const [baselineRom, setBaselineRom] = useState('60');
   const [targetRom, setTargetRom] = useState('180');
@@ -84,40 +89,65 @@ export default function GoalCreateScreen() {
     setStep((prev) => prev - 1);
   };
 
-  const handleCreate = () => {
-    const id = `goal_${Date.now()}`;
-    const now = new Date();
-    addGoal({
-      id,
-      title: goalType.title,
-      targetDate: targetDateLabel,
-      targetArea: goalType.targetArea,
-      focusAreas: goalType.focusAreas,
-      baselineRom: baselineValue,
-      currentRom: baselineValue,
-      targetRom: targetValue,
-      sessionsCompleted: 1,
-      streakDays: 1,
-      lastCheckIn: 'Today',
-      lastCheckInAt: now.toISOString(),
-      method: method.title,
-      history: [baselineValue],
-      checkIns: [
-        {
-          date: now.toISOString(),
-          rom: baselineValue,
-          areas: goalType.focusAreas,
-        },
-      ],
-      status: 'active',
-      createdAt: now.toISOString(),
-    });
-    router.replace('/goals');
+  const handleCreate = async () => {
+    if (saving) return;
+    setSaving(true);
+
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + timelineWeeks * 7);
+
+    try {
+      if (isAuthenticated) {
+        await createFlexibilityGoal({
+          goalType: goalType.id,
+          description: notes || undefined,
+          targetArea: goalType.targetArea,
+          baselineRom: baselineValue,
+          targetRom: targetValue,
+          targetDate: targetDate.toISOString().split('T')[0],
+        });
+        await fetchGoals();
+      } else {
+        const id = `goal_${Date.now()}`;
+        const now = new Date();
+        addGoal({
+          id,
+          title: goalType.title,
+          goalType: goalType.id,
+          targetDate: targetDateLabel,
+          targetArea: goalType.targetArea,
+          focusAreas: goalType.focusAreas,
+          baselineRom: baselineValue,
+          currentRom: baselineValue,
+          targetRom: targetValue,
+          sessionsCompleted: 1,
+          streakDays: 1,
+          lastCheckIn: 'Today',
+          lastCheckInAt: now.toISOString(),
+          method: method.title,
+          history: [baselineValue],
+          checkIns: [
+            {
+              date: now.toISOString(),
+              rom: baselineValue,
+              areas: goalType.focusAreas,
+            },
+          ],
+          status: 'active',
+          createdAt: now.toISOString(),
+        });
+      }
+      router.replace('/goals');
+    } catch (error) {
+      console.error('Failed to create goal:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}

@@ -13,6 +13,8 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { API_URL } from '@/config/api';
 import { Button, Card } from '@/components/ui';
 import { colors, gradients, spacing, typography, borderRadius, shadows } from '@/config/theme';
+import { logStretchingSession, getStretchingStats } from '@/lib/api/stretching';
+import { useAuthStore } from '@/store/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -188,17 +190,46 @@ export default function PlayerScreen() {
   const saveSession = async (stretches: SessionStretch[]) => {
     if (!routine || !sessionStarted) return;
 
+    const durationSeconds = Math.floor((Date.now() - sessionStarted.getTime()) / 1000);
+    let streak = 0;
+
+    try {
+      const isAuthenticated = useAuthStore.getState().isAuthenticated;
+      if (isAuthenticated) {
+        await logStretchingSession({
+          routineId: routine.id,
+          durationSeconds,
+          stretches: stretches.map((s) => ({
+            stretchId: s.stretchId,
+            heldSeconds: s.heldDurationSeconds,
+            feltTight: s.feltTight,
+            position: s.positionInRoutine,
+          })),
+        });
+
+        try {
+          const stats = await getStretchingStats('month');
+          streak = stats.currentStreak;
+        } catch {
+          // Stats fetch is best-effort
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to save session to backend:', error);
+    }
+
     try {
       router.push({
         pathname: '/routine-complete' as const,
         params: {
           routineName: routine.name,
-          duration: Math.floor((Date.now() - sessionStarted.getTime()) / 1000).toString(),
+          duration: durationSeconds.toString(),
           stretchCount: stretches.length.toString(),
+          streak: streak.toString(),
         },
       } as any);
     } catch (error) {
-      console.error('Failed to save session:', error);
+      console.error('Failed to navigate:', error);
       router.back();
     }
   };
@@ -223,7 +254,7 @@ export default function PlayerScreen() {
   if (loading || !routine) {
     return (
       <LinearGradient colors={gradients.background} style={[styles.container, styles.centered]}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <Text style={styles.loadingText}>Loading routine...</Text>
       </LinearGradient>
     );
@@ -235,7 +266,7 @@ export default function PlayerScreen() {
   if (showTightPrompt) {
     return (
       <LinearGradient colors={gradients.background} style={[styles.container, styles.centered]}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <Text style={styles.promptEmoji}>🤔</Text>
         <Text style={styles.promptTitle}>How did that feel?</Text>
         <Text style={styles.promptSubtitle}>This helps us track your progress</Text>
@@ -265,7 +296,7 @@ export default function PlayerScreen() {
 
   return (
     <LinearGradient colors={gradients.background} style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.closeButton}>

@@ -6,33 +6,31 @@ import {
   ScrollView,
   Pressable,
   TextInput,
+  Modal,
   Alert,
   ActivityIndicator,
   StatusBar,
   FlatList,
-  Image,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring,
   FadeIn,
   FadeInUp,
 } from 'react-native-reanimated';
-import { colors, gradients, typography, spacing, borderRadius, shadows } from '@/config/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '@/config/theme';
 import { useAuthStore } from '@/store/authStore';
-import { useSettingsStore } from '@/store/settingsStore';
 import { API_URL } from '@/config/api';
-import { Card, ErrorBanner } from '@/components/ui';
-import { EmptyState } from '@/components/EmptyState';
+import { Card, Button } from '@/components/ui';
 import { fetchExercises, fetchBodyParts } from '@/lib/api/exercises';
-import { Exercise as APIExercise, BODY_PART_EMOJIS, EQUIPMENT_ICONS } from '@/types/exercise';
+import { fetchRoutines, Routine, CATEGORY_INFO } from '@/lib/api/routines';
+import { Exercise as APIExercise, BODY_PART_EMOJIS } from '@/types/exercise';
 import ExerciseDetailModal from '@/components/ExerciseDetailModal';
+import RoutineCard from '@/components/RoutineCard';
+import RoutineDetailModal from '@/components/RoutineDetailModal';
 import { playHaptic } from '@/lib/sounds';
-import { router } from 'expo-router';
+import { Skeleton } from '@/components/AnimatedComponents';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -56,91 +54,131 @@ interface Workout {
 }
 
 export default function WorkoutsScreen() {
+  // Main view state
+  const [currentView, setCurrentView] = useState<'main' | 'routines' | 'exercises'>('main');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Routines state
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routinesLoading, setRoutinesLoading] = useState(false);
+  const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
+  const [routineModalVisible, setRoutineModalVisible] = useState(false);
+  
+  // Exercises state (for search)
   const [exercises, setExercises] = useState<APIExercise[]>([]);
-  const [activeWorkout, setActiveWorkout] = useState<Workout | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [exercisesLoading, setExercisesLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [bodyParts, setBodyParts] = useState<string[]>([]);
-  const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [restTimerRemaining, setRestTimerRemaining] = useState<number | null>(null);
-  const restIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { accessToken, isAuthenticated } = useAuthStore();
-  const preferences = useSettingsStore((state) => state.preferences);
+  const [hasSearched, setHasSearched] = useState(false);
   
   // Exercise detail modal
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  
+  const { accessToken, isAuthenticated } = useAuthStore();
 
+  // Load routines on mount
   useEffect(() => {
-    loadInitialData();
+    loadRoutines();
   }, []);
 
+  // Search exercises when query changes
   useEffect(() => {
-    return () => {
-      if (restIntervalRef.current) {
-        clearInterval(restIntervalRef.current);
-      }
-    };
-  }, []);
+    if (searchQuery.length >= 2) {
+      const timeout = setTimeout(() => {
+        searchExercises();
+      }, 300);
+      return () => clearTimeout(timeout);
+    } else {
+      setExercises([]);
+      setHasSearched(false);
+    }
+  }, [searchQuery]);
 
-  useEffect(() => {
-    // Debounced search
-    const timeout = setTimeout(() => {
-      setPage(1);
-      loadExercises(1, true);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchQuery, selectedBodyPart]);
-
-  const loadInitialData = async () => {
+  const loadRoutines = async (category?: string) => {
+    setRoutinesLoading(true);
     try {
-      const [exerciseData, bodyPartData] = await Promise.all([
-        fetchExercises({ page: 1, limit: 20 }),
-        fetchBodyParts().catch(() => []),
-      ]);
-      setExercises(exerciseData.exercises);
-      setTotalPages(exerciseData.pagination.totalPages);
-      setBodyParts(bodyPartData);
-      setErrorMessage(null);
+      const data = await fetchRoutines({ 
+        isPremade: true,
+        category: category || undefined,
+      });
+      setRoutines(data);
     } catch (error) {
-      console.log('Failed to fetch exercises:', error);
-      setErrorMessage('Unable to load exercises right now.');
+      console.log('Failed to fetch routines:', error);
     } finally {
-      setLoading(false);
+      setRoutinesLoading(false);
     }
   };
 
-  const loadExercises = async (pageNum = 1, reset = false) => {
-    if (reset) setLoading(true);
-    else setLoadingMore(true);
-    
+  const searchExercises = async () => {
+    setExercisesLoading(true);
+    setHasSearched(true);
     try {
       const response = await fetchExercises({
-        page: pageNum,
-        limit: 20,
-        bodyPart: selectedBodyPart || undefined,
-        search: searchQuery || undefined,
+        search: searchQuery,
+        limit: 30,
       });
-      
-      if (reset || pageNum === 1) {
-        setExercises(response.exercises);
-      } else {
-        setExercises(prev => [...prev, ...response.exercises]);
-      }
-      
-      setTotalPages(response.pagination.totalPages);
-      setPage(pageNum);
-      setErrorMessage(null);
+      setExercises(response.exercises);
     } catch (error) {
-      console.log('Failed to fetch exercises:', error);
-      setErrorMessage('Unable to load exercises right now.');
+      console.log('Failed to search exercises:', error);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      setExercisesLoading(false);
+    }
+  };
+
+  const handleCategoryPress = (category: string) => {
+    playHaptic('light');
+    setSelectedCategory(category);
+    loadRoutines(category);
+    setCurrentView('routines');
+  };
+
+  const handleRoutinePress = (routine: Routine) => {
+    playHaptic('light');
+    setSelectedRoutine(routine);
+    setRoutineModalVisible(true);
+  };
+
+  const handleStartRoutineWorkout = async (routine: Routine) => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign In Required', 'Please sign in to start a workout.');
+      return;
+    }
+
+    playHaptic('success');
+    setRoutineModalVisible(false);
+
+    try {
+      const response = await fetch(`${API_URL}/strength/workouts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ name: routine.name }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Add routine exercises to the workout
+        if (routine.exercises?.length) {
+          for (const ex of routine.exercises) {
+            const exId = ex.exerciseId || ex.exercise?.id;
+            if (exId) {
+              await fetch(`${API_URL}/strength/workouts/${data.workout.id}/exercises`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ exerciseId: exId }),
+              });
+            }
+          }
+        }
+        router.push({ pathname: '/active-workout' as any, params: { workoutId: data.workout.id } });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start workout');
     }
   };
 
@@ -150,16 +188,14 @@ export default function WorkoutsScreen() {
     setDetailModalVisible(true);
   };
 
-  const handleFilterPress = (bodyPart: string) => {
-    playHaptic('selection');
-    setSelectedBodyPart(prev => prev === bodyPart ? null : bodyPart);
-  };
-
-  const startWorkout = async () => {
+  const startEmptyWorkout = async () => {
     if (!isAuthenticated) {
       Alert.alert('Sign In Required', 'Please sign in to start a workout.');
       return;
     }
+
+    playHaptic('success');
+
     try {
       const response = await fetch(`${API_URL}/strength/workouts`, {
         method: 'POST',
@@ -169,472 +205,311 @@ export default function WorkoutsScreen() {
         },
         body: JSON.stringify({ name: `Workout - ${new Date().toLocaleDateString()}` }),
       });
+
       if (response.ok) {
         const data = await response.json();
-        setActiveWorkout({ ...data.workout, exercises: [] });
+        router.push({ pathname: '/active-workout' as any, params: { workoutId: data.workout.id } });
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to start workout');
     }
   };
 
-  const addExerciseToWorkout = async (exercise: APIExercise) => {
-    if (!activeWorkout) return;
-    playHaptic('success');
-    
-    // Add locally for immediate feedback
-    const newWorkoutExercise: WorkoutExercise = {
-      id: `temp-${Date.now()}`,
-      exercise,
-      sets: [],
-    };
-    
-    setActiveWorkout({
-      ...activeWorkout,
-      exercises: [...activeWorkout.exercises, newWorkoutExercise],
-    });
-    
-    
-    // Optionally sync with backend
-    try {
-      await fetch(`${API_URL}/strength/workouts/${activeWorkout.id}/exercises`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ exerciseId: exercise.id }),
-      });
-    } catch (error) {
-      console.log('Failed to sync exercise to backend:', error);
-    }
-  };
+  // Get unique categories from routines
+  const categories = Object.entries(CATEGORY_INFO).filter(([key]) => 
+    routines.some(r => r.category === key) || 
+    ['home', 'travel', 'dumbbell', 'band', 'cardio', 'gym', 'bodyweight', 'suspension'].includes(key)
+  );
 
-  const addSet = async (workoutExerciseId: string, weight: number, reps: number) => {
-    playHaptic('light');
-    
-    // Add locally
-    const newSet: WorkoutSet = {
-      id: `set-${Date.now()}`,
-      setNumber: (activeWorkout?.exercises.find(e => e.id === workoutExerciseId)?.sets.length || 0) + 1,
-      weight,
-      reps,
-    };
-    
-    setActiveWorkout({
-      ...activeWorkout!,
-      exercises: activeWorkout!.exercises.map((we) =>
-        we.id === workoutExerciseId
-          ? { ...we, sets: [...we.sets, newSet] }
-          : we
-      ),
-    });
-
-    if (preferences.autoRestTimer) {
-      startRestTimer(preferences.restTimerSeconds);
-    }
-  };
-
-  const startRestTimer = (durationSeconds: number) => {
-    if (restIntervalRef.current) {
-      clearInterval(restIntervalRef.current);
-    }
-    setRestTimerRemaining(durationSeconds);
-    restIntervalRef.current = setInterval(() => {
-      setRestTimerRemaining((prev) => {
-        if (prev === null || prev <= 1) {
-          if (restIntervalRef.current) clearInterval(restIntervalRef.current);
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const cancelRestTimer = () => {
-    if (restIntervalRef.current) {
-      clearInterval(restIntervalRef.current);
-    }
-    setRestTimerRemaining(null);
-  };
-
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const finishWorkout = async () => {
-    if (!activeWorkout) return;
-    playHaptic('success');
-    setActiveWorkout(null);
-    if (preferences.autoStretchPrompt) {
-      Alert.alert(
-        'Workout Complete',
-        'Want a quick recovery stretch?',
-        [
-          { text: 'Maybe later', style: 'cancel' },
-          { text: 'Start Stretch', onPress: () => router.push('/(tabs)/stretching') },
-        ]
-      );
-    } else {
-      Alert.alert('🎉 Workout Complete!', 'Great job finishing your workout!');
-    }
-  };
-
-  const renderExerciseItem = useCallback(({ item, index }: { item: APIExercise; index: number }) => (
-    <ExerciseLibraryRow 
-      exercise={item} 
-      onPress={() => handleExercisePress(item)}
-      onAdd={activeWorkout ? () => addExerciseToWorkout(item) : undefined}
-      index={index}
-    />
-  ), [activeWorkout]);
-
-  if (loading && exercises.length === 0) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading exercises...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      
-      {/* Header */}
-      <Animated.View entering={FadeIn} style={styles.header}>
-        <Text style={styles.title}>Workouts</Text>
-        {activeWorkout && (
+  // Main View - Shows categories, browse routines, create workout buttons
+  const renderMainView = () => (
+    <ScrollView bounces={false} style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      {/* Quick Actions */}
+      <Animated.View entering={FadeInUp.delay(50).duration(250)}>
+        <Text style={styles.sectionTitle}>Quick Start</Text>
+        <View style={styles.quickActions}>
           <TouchableOpacity 
-            style={styles.finishButton} 
-            onPress={finishWorkout}
+            style={[styles.actionCard, styles.primaryAction]} 
+            onPress={() => {
+              playHaptic('light');
+              setSelectedCategory(null);
+              loadRoutines();
+              setCurrentView('routines');
+            }}
           >
-            <Text style={styles.finishButtonText}>Finish</Text>
+            <Text style={styles.actionIcon}>📋</Text>
+            <Text style={styles.actionLabel}>Browse Routines</Text>
+            <Text style={styles.actionSublabel}>{routines.length}+ premade</Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionCard, styles.secondaryAction]} 
+            onPress={startEmptyWorkout}
+          >
+            <Text style={styles.actionIcon}>✨</Text>
+            <Text style={styles.actionLabel}>Create Workout</Text>
+            <Text style={styles.actionSublabel}>Build your own</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Categories */}
+      <Animated.View entering={FadeInUp.delay(100).duration(250)}>
+        <Text style={styles.sectionTitle}>Categories</Text>
+        <View style={styles.categoriesGrid}>
+          {categories.map(([key, info], index) => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.categoryCard, { borderColor: info.color + '40' }]}
+              onPress={() => handleCategoryPress(key)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.categoryEmoji}>{info.emoji}</Text>
+              <Text style={styles.categoryName}>{info.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Animated.View>
+
+      {/* Featured Routines */}
+      <Animated.View entering={FadeInUp.delay(150).duration(250)}>
+        <Text style={styles.sectionTitle}>Featured Routines</Text>
+        {routinesLoading ? (
+          <View style={{ padding: spacing.sm, gap: spacing.sm }}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.surfaceElevated, borderRadius: 16 }}>
+                <Skeleton width={48} height={48} borderRadius={12} />
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Skeleton width="60%" height={16} borderRadius={6} />
+                  <Skeleton width="40%" height={12} borderRadius={4} style={{ marginTop: 6 }} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          routines.slice(0, 4).map((routine, index) => (
+            <RoutineCard
+              key={routine.id}
+              routine={routine}
+              onPress={handleRoutinePress}
+              index={index}
+            />
+          ))
         )}
       </Animated.View>
 
-      {/* Active Workout Banner */}
-      {activeWorkout && (
-        <Animated.View entering={FadeInUp.duration(250)} style={styles.activeWorkoutBanner}>
-          <Text style={styles.activeWorkoutTitle}>🔥 {activeWorkout.name}</Text>
-          <Text style={styles.activeWorkoutMeta}>
-            {activeWorkout.exercises.length} exercises • Tap exercises below to add
-          </Text>
-        </Animated.View>
-      )}
+      <View style={{ height: 100 }} />
+    </ScrollView>
+  );
 
-      {/* Rest Timer */}
-      {restTimerRemaining !== null && (
-        <View style={styles.restTimerBanner}>
-          <View>
-            <Text style={styles.restTimerLabel}>Rest Timer</Text>
-            <Text style={styles.restTimerValue}>{formatTimer(restTimerRemaining)}</Text>
-          </View>
-          <Pressable style={styles.restTimerButton} onPress={cancelRestTimer}>
-            <Text style={styles.restTimerButtonText}>Skip</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {errorMessage && (
-        <View style={styles.errorBannerWrap}>
-          <ErrorBanner
-            title="Couldn't load exercises"
-            message={errorMessage}
-            actionLabel="Retry"
-            onAction={() => loadExercises(1, true)}
-          />
-        </View>
-      )}
-
-      {/* Active Workout Exercises */}
-      {activeWorkout && activeWorkout.exercises.length > 0 && (
-        <ScrollView bounces={false} 
-          style={styles.activeExercisesScroll}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.activeExercisesContent}
+  // Routines View - Shows filtered routines list
+  const renderRoutinesView = () => (
+    <View style={styles.routinesContainer}>
+      {/* Back button and title */}
+      <View style={styles.viewHeader}>
+        <TouchableOpacity style={styles.backButton} onPress={() => {
+          setCurrentView('main');
+          setSelectedCategory(null);
+        }}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.viewTitle}>
+          {selectedCategory ? CATEGORY_INFO[selectedCategory]?.label || selectedCategory : 'All Routines'}
+        </Text>
+      </View>
+      
+      {/* Category chips for filtering */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        style={styles.categoryChips}
+        contentContainerStyle={{ paddingHorizontal: spacing.md }}
+      >
+        <TouchableOpacity
+          style={[styles.chip, !selectedCategory && styles.chipActive]}
+          onPress={() => {
+            setSelectedCategory(null);
+            loadRoutines();
+          }}
         >
-          {activeWorkout.exercises.map((we, index) => (
-            <WorkoutExerciseCard
-              key={we.id}
-              workoutExercise={we}
-              onAddSet={(weight, reps) => addSet(we.id, weight, reps)}
-            />
-          ))}
-        </ScrollView>
-      )}
+          <Text style={[styles.chipText, !selectedCategory && styles.chipTextActive]}>All</Text>
+        </TouchableOpacity>
+        {Object.entries(CATEGORY_INFO).map(([key, info]) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.chip, selectedCategory === key && styles.chipActive]}
+            onPress={() => {
+              setSelectedCategory(key);
+              loadRoutines(key);
+            }}
+          >
+            <Text style={styles.chipEmoji}>{info.emoji}</Text>
+            <Text style={[styles.chipText, selectedCategory === key && styles.chipTextActive]}>{info.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {/* Search Bar */}
+      {/* Routines list */}
+      {routinesLoading ? (
+        <View style={{ padding: spacing.md, gap: spacing.sm }}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.surfaceElevated, borderRadius: 16 }}>
+              <Skeleton width={48} height={48} borderRadius={12} />
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Skeleton width="65%" height={16} borderRadius={6} />
+                <Skeleton width="45%" height={12} borderRadius={4} style={{ marginTop: 6 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <FlatList
+          data={routines}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <RoutineCard routine={item} onPress={handleRoutinePress} index={index} />
+          )}
+          contentContainerStyle={{ padding: spacing.md }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Text style={styles.emptyText}>No routines found</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+
+  // Exercises View - Shows search and exercises list
+  const renderExercisesView = () => (
+    <View style={styles.exercisesContainer}>
+      {/* Header with back */}
+      <View style={styles.viewHeader}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setCurrentView('main')}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.viewTitle}>Find Exercises</Text>
+        <View style={{ width: 60 }} />
+      </View>
+
+      {/* Search */}
       <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
           placeholder="Search exercises..."
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Text style={styles.clearIcon}>✕</Text>
+          <TouchableOpacity 
+            style={styles.clearButton} 
+            onPress={() => setSearchQuery('')}
+          >
+            <Text style={styles.clearButtonText}>✕</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Body Part Filters */}
-      {bodyParts.length > 0 && (
-        <ScrollView bounces={false} 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterContent}
-        >
-          {bodyParts.map((bp) => (
-            <TouchableOpacity
-              key={bp}
-              style={[
-                styles.filterChip,
-                selectedBodyPart === bp && styles.filterChipActive,
-              ]}
-              onPress={() => handleFilterPress(bp)}
-            >
-              <Text style={styles.filterChipEmoji}>
-                {BODY_PART_EMOJIS[bp.toLowerCase()] || '🏋️'}
-              </Text>
-              <Text style={[
-                styles.filterChipText,
-                selectedBodyPart === bp && styles.filterChipTextActive,
-              ]}>
-                {bp}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+      {/* Hint when no search */}
+      {!hasSearched && (
+        <View style={styles.searchHint}>
+          <Text style={styles.searchHintEmoji}>💡</Text>
+          <Text style={styles.searchHintText}>
+            Type at least 2 characters to search exercises
+          </Text>
+        </View>
       )}
 
-      {/* Exercise List */}
-      <FlatList
-        data={exercises}
-        renderItem={renderExerciseItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        onEndReached={() => {
-          if (page < totalPages && !loadingMore) {
-            loadExercises(page + 1);
-          }
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.footer}>
-              <ActivityIndicator color={colors.primary} />
+      {/* Loading */}
+      {exercisesLoading && (
+        <View style={{ padding: spacing.md, gap: spacing.xs }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.surfaceElevated, borderRadius: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Skeleton width="55%" height={16} borderRadius={6} />
+                <Skeleton width="35%" height={12} borderRadius={4} style={{ marginTop: 4 }} />
+              </View>
             </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <EmptyState
-              type={searchQuery || selectedBodyPart ? 'search' : 'exercises'}
-              onAction={
-                searchQuery || selectedBodyPart
-                  ? () => {
-                      setSearchQuery('');
-                      setSelectedBodyPart(null);
-                    }
-                  : undefined
-              }
-              customActionLabel={searchQuery || selectedBodyPart ? 'Clear filters' : undefined}
-            />
-          </View>
-        }
+          ))}
+        </View>
+      )}
+
+      {/* Results */}
+      {hasSearched && !exercisesLoading && (
+        <FlatList
+          data={exercises}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity 
+              style={styles.exerciseRow} 
+              onPress={() => handleExercisePress(item)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.exerciseInfo}>
+                <Text style={styles.exerciseName}>{item.name}</Text>
+                <Text style={styles.exerciseMeta}>
+                  {BODY_PART_EMOJIS[item.bodyPart?.toLowerCase() || ''] || '🏋️'} {item.bodyPart} • {item.equipment}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Text style={styles.emptyText}>No exercises found for "{searchQuery}"</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      
+      {/* Header */}
+      <Animated.View entering={FadeIn} style={styles.header}>
+        <Text style={styles.title}>Workouts</Text>
+        {currentView === 'main' && (
+          <TouchableOpacity 
+            style={styles.searchHeaderButton}
+            onPress={() => setCurrentView('exercises')}
+          >
+            <Text style={styles.searchHeaderIcon}>🔍</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+
+      {/* Views */}
+      {currentView === 'main' && renderMainView()}
+      {currentView === 'routines' && renderRoutinesView()}
+      {currentView === 'exercises' && renderExercisesView()}
+
+      {/* Modals */}
+      <RoutineDetailModal
+        routine={selectedRoutine}
+        visible={routineModalVisible}
+        onClose={() => setRoutineModalVisible(false)}
+        onStartWorkout={handleStartRoutineWorkout}
       />
 
-      {/* Start Workout FAB */}
-      {!activeWorkout && (
-        <TouchableOpacity 
-          style={styles.fab}
-          onPress={startWorkout}
-        >
-          <LinearGradient
-            colors={gradients.primary}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabGradient}
-          />
-          <Text style={styles.fabText}>+ Start Workout</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Exercise Detail Modal */}
       <ExerciseDetailModal
         exerciseId={selectedExerciseId}
         visible={detailModalVisible}
-        onClose={() => setDetailModalVisible(false)}
+        onClose={() => {
+          setDetailModalVisible(false);
+          setSelectedExerciseId(null);
+        }}
       />
     </SafeAreaView>
-  );
-}
-
-// Exercise Row with GIF preview
-function ExerciseLibraryRow({ 
-  exercise, 
-  onPress,
-  onAdd,
-  index = 0,
-}: { 
-  exercise: APIExercise; 
-  onPress: () => void;
-  onAdd?: () => void;
-  index?: number;
-}) {
-  const scale = useSharedValue(1);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const bodyPartEmoji = exercise.bodyPart 
-    ? BODY_PART_EMOJIS[exercise.bodyPart.toLowerCase()] || '🏋️'
-    : '🏋️';
-
-  return (
-    <Animated.View entering={FadeInUp.delay(index * 30).duration(250)}>
-      <AnimatedPressable
-        onPress={onPress}
-        onPressIn={() => { scale.value = withSpring(0.98); }}
-        onPressOut={() => { scale.value = withSpring(1); }}
-        style={[styles.exerciseRow, animatedStyle]}
-      >
-        {/* GIF Thumbnail */}
-        <View style={styles.exerciseThumbnail}>
-          {exercise.gifUrl ? (
-            <Image
-              source={{ uri: exercise.gifUrl }}
-              style={styles.exerciseGif}
-              onLoad={() => setImageLoaded(true)}
-            />
-          ) : (
-            <Text style={styles.exerciseEmoji}>{bodyPartEmoji}</Text>
-          )}
-        </View>
-
-        {/* Info */}
-        <View style={styles.exerciseInfo}>
-          <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
-          <View style={styles.exerciseTags}>
-            {exercise.target && (
-              <Text style={styles.exerciseTag}>🎯 {exercise.target}</Text>
-            )}
-            {exercise.equipment && (
-              <Text style={styles.exerciseTag}>
-                {EQUIPMENT_ICONS[exercise.equipment.toLowerCase()] || '⚙️'} {exercise.equipment}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Add Button (if workout active) */}
-        {onAdd ? (
-          <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-            <LinearGradient
-              colors={gradients.primary}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            />
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.exerciseArrow}>›</Text>
-        )}
-      </AnimatedPressable>
-    </Animated.View>
-  );
-}
-
-// Compact workout exercise card
-function WorkoutExerciseCard({ 
-  workoutExercise, 
-  onAddSet 
-}: { 
-  workoutExercise: WorkoutExercise; 
-  onAddSet: (weight: number, reps: number) => void;
-}) {
-  const [weight, setWeight] = useState('');
-  const [reps, setReps] = useState('');
-
-  const handleAddSet = () => {
-    if (weight && reps) {
-      onAddSet(parseFloat(weight), parseInt(reps));
-      // Keep previous values for faster logging
-      setWeight(weight);
-      setReps(reps);
-    }
-  };
-
-  return (
-    <Card style={styles.workoutExerciseCard}>
-      {/* Thumbnail */}
-      <View style={styles.workoutExerciseThumbnail}>
-        {workoutExercise.exercise.gifUrl ? (
-          <Image
-            source={{ uri: workoutExercise.exercise.gifUrl }}
-            style={styles.workoutExerciseGif}
-          />
-        ) : (
-          <Text style={{ fontSize: 24 }}>🏋️</Text>
-        )}
-      </View>
-      
-      <Text style={styles.workoutExerciseTitle} numberOfLines={2}>
-        {workoutExercise.exercise.name}
-      </Text>
-      
-      {/* Sets */}
-      {workoutExercise.sets.map((set) => (
-        <Text key={set.id} style={styles.setInfo}>
-          Set {set.setNumber}: {set.weight}lbs × {set.reps}
-        </Text>
-      ))}
-      
-      {/* Add Set */}
-      <View style={styles.addSetRow}>
-        <TextInput
-          style={styles.setInput}
-          placeholder="lbs"
-          placeholderTextColor={colors.textTertiary}
-          value={weight}
-          onChangeText={setWeight}
-          keyboardType="numeric"
-        />
-        <TextInput
-          style={styles.setInput}
-          placeholder="reps"
-          placeholderTextColor={colors.textTertiary}
-          value={reps}
-          onChangeText={setReps}
-          keyboardType="numeric"
-        />
-        <Pressable style={styles.miniAddButton} onPress={handleAddSet}>
-          <LinearGradient
-            colors={gradients.primary}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.miniAddButtonGradient}
-          />
-          <Text style={styles.miniAddButtonText}>+</Text>
-        </Pressable>
-      </View>
-    </Card>
   );
 }
 
@@ -643,321 +518,261 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  loadingContainer: {
+  scrollView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   title: {
-    ...typography.title1,
+    ...typography.largeTitle,
+    color: colors.text,
+  },
+  searchHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchHeaderIcon: {
+    fontSize: 18,
+  },
+  sectionTitle: {
+    ...typography.title2,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    color: colors.text,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  actionCard: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: 16,
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  primaryAction: {
+    backgroundColor: colors.primary,
+  },
+  secondaryAction: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+  },
+  actionIcon: {
+    fontSize: 28,
+    marginBottom: spacing.xs,
+  },
+  actionLabel: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  actionSublabel: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  categoryCard: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    ...shadows.sm,
+  },
+  categoryEmoji: {
+    fontSize: 28,
+    marginBottom: spacing.xs,
+  },
+  categoryName: {
+    ...typography.caption1,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  routinesContainer: {
+    flex: 1,
+  },
+  exercisesContainer: {
+    flex: 1,
+  },
+  viewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  backButton: {
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  backButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  viewTitle: {
+    ...typography.title3,
+    flex: 1,
     color: colors.text,
   },
   finishButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     backgroundColor: colors.success,
-    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
   },
   finishButtonText: {
     ...typography.body,
     fontWeight: '600',
     color: colors.textInverse,
   },
-  activeWorkoutBanner: {
-    marginHorizontal: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.primary + '14',
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.primary + '33',
-    marginBottom: spacing.md,
+  categoryChips: {
+    marginBottom: spacing.sm,
   },
-  restTimerBanner: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+  chip: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  restTimerLabel: {
-    ...typography.caption1,
-    color: colors.textSecondary,
-  },
-  restTimerValue: {
-    ...typography.title2,
-    color: colors.text,
-  },
-  restTimerButton: {
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.accent + '12',
-    borderWidth: 1,
-    borderColor: colors.accent + '33',
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    marginRight: spacing.xs,
+    gap: 4,
   },
-  restTimerButtonText: {
+  chipActive: {
+    backgroundColor: colors.primary,
+  },
+  chipEmoji: {
+    fontSize: 14,
+  },
+  chipText: {
     ...typography.caption1,
-    color: colors.accent,
-  },
-  activeWorkoutTitle: {
-    ...typography.headline,
     color: colors.text,
+    fontWeight: '500',
   },
-  activeWorkoutMeta: {
-    ...typography.caption1,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  activeExercisesScroll: {
-    maxHeight: 220,
-    marginBottom: spacing.md,
-  },
-  activeExercisesContent: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
+  chipTextActive: {
+    color: colors.textInverse,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceElevated,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 12,
     paddingHorizontal: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    height: 44,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: spacing.sm,
   },
   searchInput: {
     flex: 1,
     ...typography.body,
     color: colors.text,
+    paddingVertical: spacing.sm,
   },
-  clearIcon: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  clearButton: {
     padding: spacing.xs,
   },
-  filterScroll: {
+  clearButtonText: {
+    color: colors.textSecondary,
+    fontSize: 16,
+  },
+  searchHint: {
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  searchHintEmoji: {
+    fontSize: 48,
     marginBottom: spacing.sm,
   },
-  filterContent: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primary + '20',
-    borderColor: colors.primary,
-  },
-  filterChipEmoji: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  filterChipText: {
-    ...typography.caption1,
+  searchHintText: {
+    ...typography.body,
     color: colors.textSecondary,
-    textTransform: 'capitalize',
-  },
-  filterChipTextActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  list: {
-    paddingBottom: 100,
+    textAlign: 'center',
   },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    padding: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.sm,
-  },
-  exerciseThumbnail: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-    overflow: 'hidden',
-  },
-  exerciseGif: {
-    width: '100%',
-    height: '100%',
-  },
-  exerciseEmoji: {
-    fontSize: 24,
+    backgroundColor: colors.surfaceElevated,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    padding: spacing.md,
+    borderRadius: 12,
   },
   exerciseInfo: {
     flex: 1,
   },
   exerciseName: {
-    ...typography.headline,
+    ...typography.body,
+    fontWeight: '600',
     color: colors.text,
-    textTransform: 'capitalize',
+    marginBottom: 2,
   },
-  exerciseTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginTop: 4,
-  },
-  exerciseTag: {
+  exerciseMeta: {
     ...typography.caption1,
     color: colors.textSecondary,
-    fontSize: 11,
   },
   addButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  addButtonGradient: {
-    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
   },
   addButtonText: {
     fontSize: 20,
     color: colors.textInverse,
     fontWeight: '600',
   },
-  exerciseArrow: {
-    ...typography.title2,
-    color: colors.textTertiary,
-  },
-  footer: {
-    paddingVertical: spacing.lg,
+  emptyState: {
     alignItems: 'center',
+    padding: spacing.xl,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.xxxl,
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: spacing.sm,
   },
-  errorBannerWrap: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: 28,
-    overflow: 'hidden',
-    ...shadows.lg,
-  },
-  fabGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  fabText: {
-    ...typography.headline,
-    color: colors.textInverse,
-  },
-  // Workout Exercise Card
-  workoutExerciseCard: {
-    width: 160,
-    padding: spacing.sm,
-  },
-  workoutExerciseThumbnail: {
-    width: '100%',
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-    overflow: 'hidden',
-  },
-  workoutExerciseGif: {
-    width: '100%',
-    height: '100%',
-  },
-  workoutExerciseTitle: {
-    ...typography.caption1,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.xs,
-    textTransform: 'capitalize',
-  },
-  setInfo: {
-    ...typography.caption1,
+  emptyText: {
+    ...typography.body,
     color: colors.textSecondary,
-  },
-  addSetRow: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: spacing.xs,
-  },
-  setInput: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    ...typography.caption1,
-    color: colors.text,
     textAlign: 'center',
   },
-  miniAddButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+  activeWorkoutBanner: {
+    backgroundColor: colors.primary + '15',
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
   },
-  miniAddButtonGradient: {
-    ...StyleSheet.absoluteFillObject,
+  activeWorkoutTitle: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.text,
   },
-  miniAddButtonText: {
-    fontSize: 16,
-    color: colors.textInverse,
-    fontWeight: '600',
+  activeWorkoutMeta: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 });

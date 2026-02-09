@@ -5,11 +5,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import {
-  requestNotificationPermission,
-  addNotificationReceivedListener,
-  addNotificationResponseListener,
-} from '@/lib/notifications';
+import { requestNotificationPermission } from '@/lib/notifications';
 
 interface NotificationState {
   hasPermission: boolean;
@@ -38,8 +34,8 @@ export function useNotifications() {
     });
 
     // Listen for notifications while app is open
-    notificationListener.current = addNotificationReceivedListener(
-      (notification) => {
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      (notification: Notifications.Notification) => {
         setState((prev) => ({
           ...prev,
           lastNotification: notification,
@@ -48,7 +44,7 @@ export function useNotifications() {
     );
 
     // Listen for notification taps
-    responseListener.current = addNotificationResponseListener((response) => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
       
       // Handle navigation based on notification type

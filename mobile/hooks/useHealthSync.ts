@@ -9,8 +9,13 @@ import {
   requestHealthPermissions,
   syncWorkoutToHealth,
   getHealthSyncState,
+  getSteps,
+  getHeartRate,
+  getSleepData,
+  getLatestBodyWeight,
   type WorkoutHealthData,
   type HealthPermissionStatus,
+  type HealthDataPoint,
 } from '@/lib/healthSync';
 
 interface HealthSyncHookState {
@@ -19,6 +24,11 @@ interface HealthSyncHookState {
   isLoading: boolean;
   lastSyncDate: Date | null;
   error: string | null;
+  // Health data
+  steps: number | null;
+  heartRate: HealthDataPoint[] | null;
+  sleepHours: number | null;
+  weight: number | null;
 }
 
 export function useHealthSync() {
@@ -28,6 +38,10 @@ export function useHealthSync() {
     isLoading: true,
     lastSyncDate: null,
     error: null,
+    steps: null,
+    heartRate: null,
+    sleepHours: null,
+    weight: null,
   });
 
   useEffect(() => {
@@ -38,7 +52,7 @@ export function useHealthSync() {
     try {
       const available = await isHealthAvailable();
       const syncState = getHealthSyncState();
-      
+
       setState((prev) => ({
         ...prev,
         isAvailable: available,
@@ -46,6 +60,11 @@ export function useHealthSync() {
         lastSyncDate: syncState.lastSyncDate,
         isLoading: false,
       }));
+
+      // If already authorized, fetch health data
+      if (syncState.isAuthorized) {
+        fetchHealthData();
+      }
     } catch (error: any) {
       setState((prev) => ({
         ...prev,
@@ -55,18 +74,41 @@ export function useHealthSync() {
     }
   };
 
+  const fetchHealthData = async () => {
+    const today = new Date();
+    const [stepsVal, hrVal, sleepVal, weightVal] = await Promise.all([
+      getSteps(today).catch(() => null),
+      getHeartRate(today).catch(() => null),
+      getSleepData(today).catch(() => null),
+      getLatestBodyWeight().catch(() => null),
+    ]);
+
+    setState((prev) => ({
+      ...prev,
+      steps: stepsVal,
+      heartRate: hrVal,
+      sleepHours: sleepVal?.totalHours ?? null,
+      weight: weightVal,
+    }));
+  };
+
   const requestPermission = useCallback(async (): Promise<HealthPermissionStatus> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const status = await requestHealthPermissions();
-      
+      const authorized = status === 'granted';
+
       setState((prev) => ({
         ...prev,
-        isAuthorized: status === 'granted',
+        isAuthorized: authorized,
         isLoading: false,
       }));
-      
+
+      if (authorized) {
+        fetchHealthData();
+      }
+
       return status;
     } catch (error: any) {
       setState((prev) => ({
@@ -86,14 +128,14 @@ export function useHealthSync() {
 
     try {
       const success = await syncWorkoutToHealth(workout);
-      
+
       if (success) {
         setState((prev) => ({
           ...prev,
           lastSyncDate: new Date(),
         }));
       }
-      
+
       return success;
     } catch (error: any) {
       setState((prev) => ({ ...prev, error: error.message }));
@@ -105,6 +147,7 @@ export function useHealthSync() {
     ...state,
     requestPermission,
     syncWorkout,
+    refreshHealthData: fetchHealthData,
     refresh: checkAvailability,
   };
 }

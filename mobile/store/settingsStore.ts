@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchWithAuth } from '@/lib/api/fetchWithAuth';
 
 export type UnitSystem = 'imperial' | 'metric';
 export type WeekStart = 'Mon' | 'Sun';
@@ -43,6 +44,8 @@ interface SettingsState {
   updateNotifications: (updates: Partial<NotificationSettings>) => void;
   toggleReminderDay: (day: string) => void;
   resetSettings: () => void;
+  fetchNotificationSettings: () => Promise<void>;
+  syncNotificationSettings: () => Promise<void>;
 }
 
 const defaultPreferences: Preferences = {
@@ -113,6 +116,32 @@ export const useSettingsStore = create<SettingsState>()(
           preferences: defaultPreferences,
           notifications: defaultNotifications,
         }),
+      fetchNotificationSettings: async () => {
+        try {
+          const response = await fetchWithAuth('/user/settings');
+          if (!response.ok) return;
+          const data = await response.json();
+          set((state) => ({
+            notifications: {
+              ...state.notifications,
+              ...data,
+            },
+          }));
+        } catch (error) {
+          console.error('Failed to fetch notification settings:', error);
+        }
+      },
+      syncNotificationSettings: async () => {
+        try {
+          const state = useSettingsStore.getState();
+          await fetchWithAuth('/user/settings', {
+            method: 'PUT',
+            body: JSON.stringify(state.notifications),
+          });
+        } catch (error) {
+          console.error('Failed to sync notification settings:', error);
+        }
+      },
     }),
     {
       name: 'settings-store',

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +19,8 @@ import { MiniLineChart } from '@/components/ui/MiniCharts';
 import { EmptyState } from '@/components/EmptyState';
 import { useGoalsStore, type FlexGoal } from '@/store/goalsStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useAuthStore } from '@/store/authStore';
+import { Skeleton } from '@/components/AnimatedComponents';
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -46,87 +49,6 @@ const getStreakDays = (goal: FlexGoal) => {
   return streak;
 };
 
-const seedActiveGoals: FlexGoal[] = [
-  {
-    id: 'splits',
-    title: 'Front Splits',
-    targetDate: 'May 28',
-    targetArea: 'Hips • Hamstrings',
-    focusAreas: ['hamstrings', 'glutes', 'quads', 'lower_back'],
-    baselineRom: 60,
-    currentRom: 75,
-    targetRom: 180,
-    sessionsCompleted: 24,
-    streakDays: 12,
-    lastCheckIn: '8 days ago',
-    lastCheckInAt: '2026-01-26T10:00:00Z',
-    method: 'Video comparison',
-    history: [60, 62, 65, 68, 70, 72, 75],
-    checkIns: [
-      {
-        date: '2026-01-26T10:00:00Z',
-        rom: 75,
-        areas: ['hamstrings', 'glutes', 'quads'],
-      },
-    ],
-    status: 'active',
-    createdAt: '2026-01-28T10:00:00Z',
-  },
-  {
-    id: 'shoulder',
-    title: 'Shoulder Mobility',
-    targetDate: 'Apr 18',
-    targetArea: 'Shoulders • Upper Back',
-    focusAreas: ['shoulders', 'upper_back', 'chest'],
-    baselineRom: 70,
-    currentRom: 92,
-    targetRom: 120,
-    sessionsCompleted: 18,
-    streakDays: 7,
-    lastCheckIn: '4 days ago',
-    lastCheckInAt: '2026-01-30T09:00:00Z',
-    method: 'Manual measurement',
-    history: [70, 75, 78, 82, 85, 90, 92],
-    checkIns: [
-      {
-        date: '2026-01-30T09:00:00Z',
-        rom: 92,
-        areas: ['shoulders', 'upper_back'],
-      },
-    ],
-    status: 'active',
-    createdAt: '2026-01-20T09:00:00Z',
-  },
-];
-
-const seedCompletedGoals: FlexGoal[] = [
-  {
-    id: 'toe-touch',
-    title: 'Touch Toes',
-    targetDate: 'Jan 20',
-    targetArea: 'Hamstrings • Lower Back',
-    focusAreas: ['hamstrings', 'lower_back', 'calves'],
-    baselineRom: 45,
-    currentRom: 90,
-    targetRom: 90,
-    sessionsCompleted: 30,
-    streakDays: 0,
-    lastCheckIn: 'Completed',
-    lastCheckInAt: '2026-01-20T10:00:00Z',
-    method: 'Self-assessment',
-    history: [45, 50, 55, 62, 70, 78, 90],
-    checkIns: [
-      {
-        date: '2026-01-20T10:00:00Z',
-        rom: 90,
-        areas: ['hamstrings', 'lower_back'],
-      },
-    ],
-    status: 'completed',
-    createdAt: '2025-12-02T09:00:00Z',
-  },
-];
-
 const checkInOptions = [
   { id: 'video', title: 'Video Check‑In', subtitle: 'Compare angles visually' },
   { id: 'manual', title: 'Manual Measurement', subtitle: 'Log ROM degrees' },
@@ -135,16 +57,23 @@ const checkInOptions = [
 
 export default function GoalsScreen() {
   const [tab, setTab] = useState<'active' | 'completed'>('active');
+  const { isAuthenticated } = useAuthStore();
   const userGoals = useGoalsStore((state) => state.goals);
+  const loading = useGoalsStore((state) => state.loading);
+  const fetchGoals = useGoalsStore((state) => state.fetchGoals);
   const notifications = useSettingsStore((state) => state.notifications);
   const goalNotificationsEnabled = notifications.notificationsEnabled && notifications.goalNotifications;
 
+  useEffect(() => {
+    if (isAuthenticated) fetchGoals();
+  }, [isAuthenticated]);
+
   const activeGoals = useMemo(
-    () => [...userGoals.filter((goal) => goal.status === 'active'), ...seedActiveGoals],
+    () => userGoals.filter((goal) => goal.status === 'active'),
     [userGoals]
   );
   const completedGoals = useMemo(
-    () => [...userGoals.filter((goal) => goal.status === 'completed'), ...seedCompletedGoals],
+    () => userGoals.filter((goal) => goal.status === 'completed'),
     [userGoals]
   );
 
@@ -172,7 +101,7 @@ export default function GoalsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <Animated.View entering={FadeInUp.delay(50).duration(250)} style={styles.header}>
           <View>
@@ -198,6 +127,38 @@ export default function GoalsScreen() {
             );
           })}
         </Animated.View>
+
+        {loading && (
+          <View style={{ gap: spacing.lg }}>
+            {[0, 1].map((i) => (
+              <View key={i} style={{ backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderLight }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+                  <View style={{ flex: 1 }}>
+                    <Skeleton width="60%" height={20} borderRadius={6} />
+                    <Skeleton width="40%" height={14} borderRadius={4} style={{ marginTop: spacing.xs }} />
+                  </View>
+                  <Skeleton width={72} height={72} borderRadius={36} />
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                  {[0, 1, 2].map((j) => (
+                    <View key={j} style={{ alignItems: 'center' }}>
+                      <Skeleton width={50} height={12} borderRadius={4} />
+                      <Skeleton width={36} height={18} borderRadius={6} style={{ marginTop: spacing.xs }} />
+                    </View>
+                  ))}
+                </View>
+                <Skeleton width="100%" height={10} borderRadius={999} />
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!isAuthenticated && !loading && (
+          <Card style={styles.goalCard}>
+            <Text style={styles.goalTitle}>Sign in to track goals</Text>
+            <Text style={styles.goalSubtitle}>Create flexibility goals and track ROM progress.</Text>
+          </Card>
+        )}
 
         {overdueGoal && (
           <Animated.View entering={FadeInUp.delay(110).duration(250)}>
